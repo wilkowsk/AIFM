@@ -55,9 +55,9 @@ public:
       length2++;
     }
 	  
-    uint32_t index = 0;
+    uint32_t outputLength = 0;
     while ((length != 0) && (length2 != 0)) {
-      if (unlikely(index % kScopeResetInterval == 0)) {
+      if (unlikely(outputLength % kScopeResetInterval == 0)) {
       	scope.renew();
       }
       if (queue.cfront(scope).data < queue2.cfront(scope).data) {
@@ -67,7 +67,7 @@ public:
         outputQueue.push(scope, Data(queue2.cfront(scope).data));
         length2--;
       }
-      index++;
+      outputLength++;
     }
     while (length != 0) {
       outputQueue.push(scope, Data(queue.cfront(scope).data));
@@ -79,7 +79,7 @@ public:
     }
 
     uint32_t element = 0;
-    for (uint32_t i = 0; i < index; i++) {
+    for (uint32_t i = 0; i < outputLength; i++) {
       if (unlikely(i % kScopeResetInterval == 0)) {
       	scope.renew();
       }
