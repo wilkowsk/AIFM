@@ -13,6 +13,7 @@ using namespace far_memory;
 constexpr uint64_t kCacheSize = (128ULL << 20);
 constexpr uint64_t kFarMemSize = (4ULL << 30);
 constexpr uint32_t kNumGCThreads = 12;
+constexpr uint64_t kNumElements = 10000;
 
 namespace far_memory {
 
@@ -23,6 +24,43 @@ public:
     DerefScope scope;
     List<int> list = FarMemManagerFactory::get()->allocate_list<int>(
         scope, /* enable_merge = */ true);
+    List<int> list2 = FarMemManagerFactory::get()->allocate_list<int>(
+        scope, /* enable_merge = */ true);
+    List<int> outputList = FarMemManagerFactory::get()->allocate_list<int>(
+        scope, /* enable_merge = */ true);
+    
+    for (int i = 0; i < kNumElements; i++) {
+      list.push_back(scope, (1337*i));
+    }
+    for (int i = 0; i < kNumElements; i++) {
+      list2.push_back(scope, (9001*i));
+    }
+    
+    while (!list.empty() && !list2.empty()) {
+      if (list.cfront(scope) < list2.cfront(scope)) {
+        outputList.push_back(scope, list.cfront(scope));
+        list.pop_front(scope);
+      } else {
+        outputList.push_back(scope, list2.cfront(scope));
+        list2.pop_front(scope);
+      }
+    }
+    while (!list.empty()) {
+      outputList.push_back(scope, list.cfront(scope));
+      list.pop_front(scope);
+    }
+    while (!list2.empty()) {
+      outputList.push_back(scope, list2.cfront(scope));
+      list2.pop_front(scope);
+    }
+    
+    uint64_t element = 0;
+    while (!outputList.empty()) {
+      TEST_ASSERT(outputList.cfront(scope) >= element);
+      element = outputList.cfront(scope);
+    }
+    std::cout << "Passed" << std::endl;
+    /*
     list.push_back(scope, 1);
     list.push_back(scope, 2);
     list.push_back(scope, 3);
@@ -158,6 +196,7 @@ public:
     TEST_ASSERT(list.empty());
 
     std::cout << "Passed" << std::endl;
+    */
   }
 };
 } // namespace far_memory
