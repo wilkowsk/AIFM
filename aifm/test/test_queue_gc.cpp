@@ -33,20 +33,59 @@ public:
     DerefScope scope;
     Queue<Data> queue =
         FarMemManagerFactory::get()->allocate_queue<Data>(scope);
+    uint32_t length = 0;
+    Queue<Data> queue2 =
+        FarMemManagerFactory::get()->allocate_queue<Data>(scope);
+    uint32_t length2 = 0;
+    Queue<Data> outputQueue =
+        FarMemManagerFactory::get()->allocate_queue<Data>(scope);
 
     for (uint32_t i = 0; i < kNumDataEntries; i++) {
       if (unlikely(i % kScopeResetInterval == 0)) {
-	scope.renew();
+      	scope.renew();
       }
-      queue.push(scope, Data(i));
+      queue.push(scope, Data(i*1337));
+      length++;
+    }
+    for (uint32_t i = 0; i < kNumDataEntries; i++) {
+      if (unlikely(i % kScopeResetInterval == 0)) {
+      	scope.renew();
+      }
+      queue2.push(scope, Data(i*9001));
+      length2++;
+    }
+	  
+    uint32_t index = 0;
+    while ((length != 0) && (length2 != 0)) {
+      if (unlikely(index % kScopeResetInterval == 0)) {
+      	scope.renew();
+      }
+      if (queue.cfront(scope).data < queue2.cfront(scope).data) {
+        outputQueue.push(scope, Data(queue.cfront(scope).data));
+        length--;
+      } else {
+        outputQueue.push(scope, Data(queue2.cfront(scope).data));
+        length2--;
+      }
+      index++;
+    }
+    while (length != 0) {
+      outputQueue.push(scope, Data(queue.cfront(scope).data));
+      length--;
+    }
+    while (length2 != 0) {
+      outputQueue.push(scope, Data(queue2.cfront(scope).data));
+      length2--;
     }
 
-    for (uint32_t i = 0; i < kNumDataEntries; i++) {
+    uint32_t element = 0;
+    for (uint32_t i = 0; i < index; i++) {
       if (unlikely(i % kScopeResetInterval == 0)) {
-	scope.renew();
+      	scope.renew();
       }
-      TEST_ASSERT(queue.cfront(scope).data == i);
-      queue.pop(scope);
+      TEST_ASSERT(outputQueue.cfront(scope).data >= element);
+      element = outputQueue.cfront(scope).data;
+      outputQueue.pop(scope);
     }
 
     std::cout << "Passed" << std::endl;
