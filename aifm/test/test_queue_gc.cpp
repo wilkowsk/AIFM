@@ -62,20 +62,26 @@ public:
       }
       if (queue.cfront(scope).data < queue2.cfront(scope).data) {
         outputQueue.push(scope, Data(queue.cfront(scope).data));
+        queue.pop(scope);
         length--;
       } else {
         outputQueue.push(scope, Data(queue2.cfront(scope).data));
+        queue2.pop(scope);
         length2--;
       }
       outputLength++;
     }
     while (length != 0) {
       outputQueue.push(scope, Data(queue.cfront(scope).data));
+      queue.pop(scope);
       length--;
+      outputLength++;
     }
     while (length2 != 0) {
       outputQueue.push(scope, Data(queue2.cfront(scope).data));
+      queue2.pop(scope);
       length2--;
+      outputLength++;
     }
 
     uint32_t element = 0;
