@@ -33,7 +33,59 @@ public:
     DerefScope scope;
     Stack<Data> stack =
         FarMemManagerFactory::get()->allocate_stack<Data>(scope);
-
+    uint32_t length = 0;
+    Stack<Data> stack2 =
+        FarMemManagerFactory::get()->allocate_stack<Data>(scope);
+    uint32_t length2 = 0;
+    Stack<Data> outputStack =
+        FarMemManagerFactory::get()->allocate_stack<Data>(scope);
+    uint32_t outputLength = 0;
+    
+    for (uint32_t i = 0; i < kNumDataEntries; i++) {
+      if (unlikely(i % kScopeResetInterval == 0)) {
+	      scope.renew();
+      }
+      stack.push(scope, Data(1337*i));
+      length++;
+    }
+    for (uint32_t i = 0; i < kNumDataEntries; i++) {
+      if (unlikely(i % kScopeResetInterval == 0)) {
+	      scope.renew();
+      }
+      stack2.push(scope, Data(9001*i));
+      length2++;
+    }
+    while (length != 0 && length2 != 0) {
+      if (stack.ctop(scope).data > stack2.ctop(scope).data) {
+        outputStack.push(scope, Data(stack.ctop(scope).data));
+        length--;
+      } else {
+        outputStack.push(scope, Data(stack2.ctop(scope).data));
+        length2--;
+      }
+      outputLength++;
+    }
+    while (length != 0) {
+      outputStack.push(scope, Data(stack.ctop(scope).data));
+      length--;
+      outputLength++;
+    }
+    while (length2 != 0) {
+      outputStack.push(scope, Data(stack2.ctop(scope).data));
+      length2--;
+      outputLength++;
+    }
+    
+    uint32_t element = outputStack.ctop(scope).data;
+    while (outputLength != 0) {
+      TEST_ASSERT(outputStack.ctop(scope).data >= element);
+      element = outputStack.ctop(scope).data;
+      outputStack.pop(scope);
+      outputLength--;
+    }
+    
+    std::cout << "Passed" << std::endl;
+	  /*
     for (uint32_t i = 0; i < kNumDataEntries; i++) {
       if (unlikely(i % kScopeResetInterval == 0)) {
 	scope.renew();
@@ -50,6 +102,7 @@ public:
     }
 
     std::cout << "Passed" << std::endl;
+    */
   }
 };
 } // namespace far_memory
