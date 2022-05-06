@@ -71,13 +71,19 @@ public:
       }
       outputLength++;
     }
-    while (length != 0) {
+    while (length != 0) {    
+      if (unlikely(outputLength % kScopeResetInterval == 0)) {
+      	scope.renew();
+      }
       outputQueue.push(scope, Data(queue.cfront(scope).data));
       queue.pop(scope);
       length--;
       outputLength++;
     }
     while (length2 != 0) {
+      if (unlikely(outputLength % kScopeResetInterval == 0)) {
+      	scope.renew();
+      }
       outputQueue.push(scope, Data(queue2.cfront(scope).data));
       queue2.pop(scope);
       length2--;
