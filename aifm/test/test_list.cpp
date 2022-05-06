@@ -29,10 +29,10 @@ public:
     List<int> outputList = FarMemManagerFactory::get()->allocate_list<int>(
         scope, /* enable_merge = */ true);
     
-    for (int i = 0; i < kNumElements; i++) {
+    for (uint64_t i = 0; i < kNumElements; i++) {
       list.push_back(scope, (1337*i));
     }
-    for (int i = 0; i < kNumElements; i++) {
+    for (uint64_t i = 0; i < kNumElements; i++) {
       list2.push_back(scope, (9001*i));
     }
     
