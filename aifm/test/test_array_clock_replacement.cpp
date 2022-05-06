@@ -21,7 +21,7 @@ struct Data {
 constexpr uint64_t kCacheSize = (256ULL << 20);
 constexpr uint64_t kFarMemSize = (8ULL << 30);
 constexpr uint32_t kNumGCThreads = 12;
-constexpr uint32_t kNumDataEntries = 8 * kCacheSize / sizeof(Data);
+constexpr uint32_t kNumDataEntries = 8 * kCacheSize / sizeof(Data) / 4;
 constexpr uint32_t kScopeResetInterval = 256;
 
 namespace far_memory {
