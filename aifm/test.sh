@@ -10,12 +10,7 @@ function run_single_test {
     if [[ $1 == *"tcp"* ]]; then
     	rerun_mem_server
     fi
-    if run_program ./bin/$1 2>/dev/null | grep -q "Passed"; then
-        say_passed
-    else
-        say_failed
-    	all_passed=0
-    fi
+    run_program ./bin/$1
 }
 
 function run_all_tests {
@@ -31,7 +26,9 @@ function cleanup {
     kill_mem_server
 }
 
-run_all_tests
+# run_all_tests
+run_single_test $*
+
 cleanup
 
 if [[ $all_passed -eq 1 ]]; then
