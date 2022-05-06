@@ -56,6 +56,9 @@ public:
       length2++;
     }
     while (length != 0 && length2 != 0) {
+      if (unlikely(outputLength % kScopeResetInterval == 0)) {
+	      scope.renew();
+      }
       if (stack.ctop(scope).data > stack2.ctop(scope).data) {
         outputStack.push(scope, Data(stack.ctop(scope).data));
         length--;
@@ -65,12 +68,19 @@ public:
       }
       outputLength++;
     }
+    
     while (length != 0) {
+      if (unlikely(outputLength % kScopeResetInterval == 0)) {
+	      scope.renew();
+      }
       outputStack.push(scope, Data(stack.ctop(scope).data));
       length--;
       outputLength++;
     }
     while (length2 != 0) {
+      if (unlikely(outputLength % kScopeResetInterval == 0)) {
+	      scope.renew();
+      }
       outputStack.push(scope, Data(stack2.ctop(scope).data));
       length2--;
       outputLength++;
@@ -78,6 +88,9 @@ public:
     
     uint32_t element = outputStack.ctop(scope).data;
     while (outputLength != 0) {
+      if (unlikely(outputLength % kScopeResetInterval == 0)) {
+	      scope.renew();
+      }
       TEST_ASSERT(outputStack.ctop(scope).data >= element);
       element = outputStack.ctop(scope).data;
       outputStack.pop(scope);
