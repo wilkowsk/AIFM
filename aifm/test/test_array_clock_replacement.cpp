@@ -48,6 +48,7 @@ public:
       stack.push(scope, Data(1337*i));
       length++;
     }
+	  std::cout << "51" << std::endl;
     for (uint32_t i = 0; i < kNumDataEntries; i++) {
       if (unlikely(i % kScopeResetInterval == 0)) {
 	      scope.renew();
@@ -55,6 +56,7 @@ public:
       stack2.push(scope, Data(9001*i));
       length2++;
     }
+    std::cout << "59" << std::endl;
     while (length != 0 && length2 != 0) {
       if (unlikely(outputLength % kScopeResetInterval == 0)) {
 	      scope.renew();
@@ -68,7 +70,7 @@ public:
       }
       outputLength++;
     }
-    
+    std::cout << "73" << std::endl;
     while (length != 0) {
       if (unlikely(outputLength % kScopeResetInterval == 0)) {
 	      scope.renew();
@@ -77,6 +79,7 @@ public:
       length--;
       outputLength++;
     }
+    std::cout << "82" << std::endl;
     while (length2 != 0) {
       if (unlikely(outputLength % kScopeResetInterval == 0)) {
 	      scope.renew();
@@ -85,7 +88,7 @@ public:
       length2--;
       outputLength++;
     }
-    
+    std::cout << "91" << std::endl;
     uint32_t element = outputStack.ctop(scope).data;
     while (outputLength != 0) {
       if (unlikely(outputLength % kScopeResetInterval == 0)) {
