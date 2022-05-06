@@ -57,7 +57,7 @@ int search_array(Array<T, N> *array_A, uint64_t targetElement) {
     middleElement = (*array_A).at(scope, middle);
     if (middleElement > targetElement) { // middleElement is too high
       high = middle - 1;
-    } elseif (middleElement < targetElement) { // middleElement is too low
+    } else if (middleElement < targetElement) { // middleElement is too low
       low = middle + 1;
     } else {
       foundElement = true;
@@ -85,7 +85,7 @@ void do_work(FarMemManager *manager) {
 
   gen_random_array(kNumEntries, raw_array_A);
   copy_array(&array_A, raw_array_A);
-  add_array(&array_C, &array_A, &array_B);
+  // add_array(&array_C, &array_A, &array_B);
   uint64_t result;
 
   for (uint64_t i = 0; i < 10000; i += 100) {
@@ -95,7 +95,7 @@ void do_work(FarMemManager *manager) {
       goto fail;
     }
     result = search_array(&array_A, raw_array_A[i] + 1);
-    if (result != -1) {
+    if (result != -1ULL) {
       goto fail;
     }
   }
