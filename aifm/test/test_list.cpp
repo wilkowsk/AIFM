@@ -58,6 +58,7 @@ public:
     while (!outputList.empty()) {
       TEST_ASSERT(outputList.cfront(scope) >= element);
       element = outputList.cfront(scope);
+      outputList.pop_front(scope);
     }
     std::cout << "Passed" << std::endl;
     /*
