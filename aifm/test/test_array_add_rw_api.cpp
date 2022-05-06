@@ -7,13 +7,22 @@ extern "C" {
 #include "manager.hpp"
 
 #include <iostream>
+#include <memory>
 
 using namespace far_memory;
 
-constexpr uint64_t kCacheSize = (128ULL << 20);
-constexpr uint64_t kFarMemSize = (4ULL << 30);
+struct Data {
+  uint32_t data;
+  uint32_t dummy[1023];
+
+  Data(uint32_t _data) : data(_data) {}
+};
+
+constexpr uint64_t kCacheSize = (256ULL << 20);
+constexpr uint64_t kFarMemSize = (8ULL << 30);
 constexpr uint32_t kNumGCThreads = 12;
-constexpr uint64_t kNumElements = 10000;
+constexpr uint32_t kNumDataEntries = 8 * kCacheSize / sizeof(Data);
+constexpr uint32_t kScopeResetInterval = 256;
 
 namespace far_memory {
 
@@ -22,182 +31,76 @@ public:
   void do_work(FarMemManager *manager) {
     std::cout << "Running " << __FILE__ "..." << std::endl;
     DerefScope scope;
-    List<int> list = FarMemManagerFactory::get()->allocate_list<int>(
-        scope, /* enable_merge = */ true);
-    List<int> list2 = FarMemManagerFactory::get()->allocate_list<int>(
-        scope, /* enable_merge = */ true);
-    List<int> outputList = FarMemManagerFactory::get()->allocate_list<int>(
-        scope, /* enable_merge = */ true);
-    
-    for (uint64_t i = 0; i < kNumElements; i++) {
-      list.push_back(scope, (1337*i));
+    Queue<Data> queue =
+        FarMemManagerFactory::get()->allocate_queue<Data>(scope);
+    uint32_t length = 0;
+    Queue<Data> queue2 =
+        FarMemManagerFactory::get()->allocate_queue<Data>(scope);
+    uint32_t length2 = 0;
+    Queue<Data> outputQueue =
+        FarMemManagerFactory::get()->allocate_queue<Data>(scope);
+
+    for (uint32_t i = 0; i < kNumDataEntries; i++) {
+      if (unlikely(i % kScopeResetInterval == 0)) {
+      	scope.renew();
+      }
+      queue.push(scope, Data(i*1337));
+      length++;
     }
-    for (uint64_t i = 0; i < kNumElements; i++) {
-      list2.push_back(scope, (9001*i));
+    for (uint32_t i = 0; i < kNumDataEntries; i++) {
+      if (unlikely(i % kScopeResetInterval == 0)) {
+      	scope.renew();
+      }
+      queue2.push(scope, Data(i*9001));
+      length2++;
     }
-    
-    while (!list.empty() && !list2.empty()) {
-      if (list.cfront(scope) < list2.cfront(scope)) {
-        outputList.push_back(scope, list.cfront(scope));
-        list.pop_front(scope);
+	  
+    uint32_t outputLength = 0;
+    while ((length != 0) && (length2 != 0)) {
+      if (unlikely(outputLength % kScopeResetInterval == 0)) {
+      	scope.renew();
+      }
+      if (queue.cfront(scope).data < queue2.cfront(scope).data) {
+        outputQueue.push(scope, Data(queue.cfront(scope).data));
+        queue.pop(scope);
+        length--;
       } else {
-        outputList.push_back(scope, list2.cfront(scope));
-        list2.pop_front(scope);
+        outputQueue.push(scope, Data(queue2.cfront(scope).data));
+        queue2.pop(scope);
+        length2--;
       }
+      outputLength++;
     }
-    while (!list.empty()) {
-      outputList.push_back(scope, list.cfront(scope));
-      list.pop_front(scope);
-    }
-    while (!list2.empty()) {
-      outputList.push_back(scope, list2.cfront(scope));
-      list2.pop_front(scope);
-    }
-    
-    uint64_t element = 0;
-    while (!outputList.empty()) {
-      TEST_ASSERT(outputList.cfront(scope) >= element);
-      element = outputList.cfront(scope);
-      outputList.pop_front(scope);
-    }
-    std::cout << "Passed" << std::endl;
-    /*
-    list.push_back(scope, 1);
-    list.push_back(scope, 2);
-    list.push_back(scope, 3);
-    TEST_ASSERT(list.cfront(scope) == 1);
-    TEST_ASSERT(list.cback(scope) == 3);
-    TEST_ASSERT(list.size() == 3);
-    TEST_ASSERT(list.empty() == false);
-
-    int idx = 0;
-    for (auto iter = list.begin(scope); iter != list.end(scope);
-         iter.inc(scope)) {
-      TEST_ASSERT(++idx == iter.deref(scope));
-    }
-    for (auto iter = list.rbegin(scope); iter != list.rend(scope);
-         iter.inc(scope)) {
-      TEST_ASSERT(idx-- == iter.deref(scope));
-    }
-
-    list.pop_front(scope);
-    list.pop_back(scope);
-    TEST_ASSERT(list.cfront(scope) == 2);
-    TEST_ASSERT(list.cback(scope) == 2);
-    TEST_ASSERT(list.size() == 1);
-    TEST_ASSERT(list.empty() == false);
-
-    list.pop_front(scope);
-    TEST_ASSERT(list.size() == 0);
-    TEST_ASSERT(list.empty() == true);
-
-    list.push_back(scope, 1);
-    list.push_back(scope, 2);
-    list.push_back(scope, 3);
-
-    auto iter = list.begin(scope);
-    idx = 0;
-    while (iter != list.end(scope)) {
-      TEST_ASSERT(++idx == iter.deref(scope));
-      iter = list.erase(scope, iter);
-    }
-
-    for (uint32_t i = 1; i <= 2 * List<int>::kMaxNumNodesPerChunk; i++) {
-      list.push_back(scope, i);
-    }
-
-    iter = list.begin(scope);
-    idx = 0;
-    while (iter != list.end(scope)) {
-      TEST_ASSERT(++idx == iter.deref(scope));
-      iter = list.erase(scope, iter);
-    }
-    TEST_ASSERT(idx == 2 * List<int>::kMaxNumNodesPerChunk);
-
-    for (uint32_t i = 1; i <= 2 * List<int>::kMaxNumNodesPerChunk; i++) {
-      list.push_front(scope, i);
-    }
-
-    auto rev_iter = list.rbegin(scope);
-    idx = 0;
-    while (rev_iter != list.rend(scope)) {
-      TEST_ASSERT(++idx == rev_iter.deref(scope));
-      rev_iter = list.erase(scope, rev_iter);
-    }
-    TEST_ASSERT(idx == 2 * List<int>::kMaxNumNodesPerChunk);
-
-    for (uint32_t i = 1; i <= List<int>::kMaxNumNodesPerChunk - 1; i++) {
-      list.push_back(scope, i);
-    }
-    iter = list.begin(scope);
-    iter.inc(scope);
-    iter.inc(scope);
-    list.insert(scope, &iter, 0);
-
-    idx = 0;
-    iter = list.begin(scope);
-    while (iter != list.end(scope)) {
-      auto list_data = iter.deref(scope);
-      TEST_ASSERT(++idx == list_data);
-      iter = list.erase(scope, iter);
-      if (unlikely(list_data == 2)) {
-        TEST_ASSERT(0 == iter.deref(scope));
-        iter = list.erase(scope, iter);
+    while (length != 0) {    
+      if (unlikely(outputLength % kScopeResetInterval == 0)) {
+      	scope.renew();
       }
+      outputQueue.push(scope, Data(queue.cfront(scope).data));
+      queue.pop(scope);
+      length--;
+      outputLength++;
     }
-    TEST_ASSERT(idx == List<int>::kMaxNumNodesPerChunk - 1);
-    TEST_ASSERT(list.empty());
-
-    for (uint32_t i = 1; i <= List<int>::kMaxNumNodesPerChunk - 1; i++) {
-      list.push_back(scope, i);
-    }
-    iter = list.end(scope);
-    iter.dec(scope);
-    iter.dec(scope);
-    list.insert(scope, &iter, 0);
-
-    idx = 0;
-    iter = list.begin(scope);
-    while (iter != list.end(scope)) {
-      auto list_data = iter.deref(scope);
-      TEST_ASSERT(++idx == list_data);
-      iter = list.erase(scope, iter);
-      if (unlikely(list_data == List<int>::kMaxNumNodesPerChunk - 3)) {
-        TEST_ASSERT(0 == iter.deref(scope));
-        iter = list.erase(scope, iter);
+    while (length2 != 0) {
+      if (unlikely(outputLength % kScopeResetInterval == 0)) {
+      	scope.renew();
       }
+      outputQueue.push(scope, Data(queue2.cfront(scope).data));
+      queue2.pop(scope);
+      length2--;
+      outputLength++;
     }
-    TEST_ASSERT(idx == List<int>::kMaxNumNodesPerChunk - 1);
 
-    for (uint32_t i = 1; i <= List<int>::kMaxNumNodesPerChunk + 1; i++) {
-      list.push_back(scope, i);
+    uint32_t element = 0;
+    for (uint32_t i = 0; i < outputLength; i++) {
+      if (unlikely(i % kScopeResetInterval == 0)) {
+      	scope.renew();
+      }
+      TEST_ASSERT(outputQueue.cfront(scope).data >= element);
+      element = outputQueue.cfront(scope).data;
+      outputQueue.pop(scope);
     }
-
-    iter = list.end(scope);
-    for (uint32_t i = 0; i <= List<int>::kMaxNumNodesPerChunk / 2; i++) {
-      iter.dec(scope);
-    }
-    TEST_ASSERT(33 == iter.deref(scope));
-    for (uint32_t i = 0; i <= List<int>::kMaxNumNodesPerChunk / 4; i++) {
-      iter = list.erase(scope, iter);
-    }
-    iter = list.begin(scope);
-    for (uint32_t i = 0; i < List<int>::kMaxNumNodesPerChunk / 4; i++) {
-      iter = list.erase(scope, iter);
-    }
-    TEST_ASSERT(list.local_list_.size() == 3);
-    for (uint32_t i = 0; i < List<int>::kMaxNumNodesPerChunk / 4; i++) {
-      TEST_ASSERT(i + 17 == static_cast<uint32_t>(iter.deref(scope)));
-      iter = list.erase(scope, iter);
-    }
-    for (uint32_t i = 0; i < List<int>::kMaxNumNodesPerChunk / 4; i++) {
-      TEST_ASSERT(i + 50 == static_cast<uint32_t>(iter.deref(scope)));
-      iter = list.erase(scope, iter);
-    }
-    TEST_ASSERT(list.empty());
 
     std::cout << "Passed" << std::endl;
-    */
   }
 };
 } // namespace far_memory
