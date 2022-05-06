@@ -47,6 +47,7 @@ public:
       queue.push(scope, Data(i*1337));
       length++;
     }
+    std::cout << "50" << std::endl;
     for (uint32_t i = 0; i < kNumDataEntries; i++) {
       if (unlikely(i % kScopeResetInterval == 0)) {
       	scope.renew();
@@ -54,7 +55,7 @@ public:
       queue2.push(scope, Data(i*9001));
       length2++;
     }
-	  
+	  std::cout << "58" << std::endl;
     uint32_t outputLength = 0;
     while ((length != 0) && (length2 != 0)) {
       if (unlikely(outputLength % kScopeResetInterval == 0)) {
@@ -71,6 +72,7 @@ public:
       }
       outputLength++;
     }
+    std::cout << "75" << std::endl;
     while (length != 0) {    
       if (unlikely(outputLength % kScopeResetInterval == 0)) {
       	scope.renew();
@@ -80,6 +82,7 @@ public:
       length--;
       outputLength++;
     }
+    std::cout << "85" << std::endl;
     while (length2 != 0) {
       if (unlikely(outputLength % kScopeResetInterval == 0)) {
       	scope.renew();
@@ -89,7 +92,7 @@ public:
       length2--;
       outputLength++;
     }
-
+    std::cout << "95" << std::endl;
     uint32_t element = 0;
     for (uint32_t i = 0; i < outputLength; i++) {
       if (unlikely(i % kScopeResetInterval == 0)) {
