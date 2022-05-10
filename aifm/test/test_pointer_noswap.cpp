@@ -25,14 +25,14 @@ void do_work(FarMemManager *manager) {
   DerefScope scope;
   {
     auto raw_ptr_0 = far_mem_ptr_0.deref_mut(scope);
-    for (int i = 0; i < 513; i++) {
+    for (uint64_t i = 0; i < 513; i++) {
       raw_ptr_0->data[i] = i;
     }
   }
 
   {
     const auto raw_ptr_0 = far_mem_ptr_0.deref(scope);
-    for (int i = 0; i < 513; i++) {
+    for (uint64_t i = 0; i < 513; i++) {
       uint64_t low = 0;
       uint64_t high = 512;
       uint64_t middle;
