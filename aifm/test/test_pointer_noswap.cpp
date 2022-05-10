@@ -14,35 +14,48 @@ using namespace far_memory;
 using namespace std;
 
 struct Data512 {
-  char data[512];
+  uint64_t data[513];
 };
 
 void do_work(FarMemManager *manager) {
   cout << "Running " << __FILE__ "..." << endl;
 
   auto far_mem_ptr_0 = manager->allocate_unique_ptr<Data512>();
-  auto far_mem_ptr_1 = manager->allocate_unique_ptr<unsigned int>();
 
   DerefScope scope;
   {
     auto raw_ptr_0 = far_mem_ptr_0.deref_mut(scope);
-    auto raw_ptr_1 = far_mem_ptr_1.deref_mut(scope);
-    for (int i = 0; i < 512; i++) {
-      raw_ptr_0->data[i] = static_cast<char>(i);
+    for (int i = 0; i < 513; i++) {
+      raw_ptr_0->data[i] = i;
     }
-    *raw_ptr_1 = 0xDEADBEEF;
   }
 
   {
     const auto raw_ptr_0 = far_mem_ptr_0.deref(scope);
-    const auto raw_ptr_1 = far_mem_ptr_1.deref(scope);
-    for (int i = 0; i < 512; i++) {
-      if (raw_ptr_0->data[i] != static_cast<char>(i)) {
+    for (int i = 0; i < 513; i++) {
+      uint64_t low = 0;
+      uint64_t high = 512;
+      uint64_t middle;
+      bool foundElement = false;
+      while ((high >= low) && !foundElement) {
+        middle = (low + high) / 2;
+        if (raw_ptr_0->data[middle] > i) { // update high
+          high = middle - 1;
+        } else if (raw_ptr_0->data[middle] < i) { // update low
+          low = middle + 1;
+        } else {
+          foundElement = true;
+        }
+      }
+      if (raw_ptr_0->data[middle] != i) {
         goto fail;
       }
-    }
-    if ((*raw_ptr_1) != 0xDEADBEEF) {
-      goto fail;
+      if (!foundElement) {
+        goto fail;
+      }
+      //if (raw_ptr_0->data[i] != static_cast<char>(i)) {
+      //  goto fail;
+      //}
     }
   }
 
