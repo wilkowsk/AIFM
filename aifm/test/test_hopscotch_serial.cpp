@@ -59,15 +59,65 @@ void do_work(FarMemManager *manager) {
       kHashTableNumEntriesShift, kHashTableNumEntriesShift,
       kHashTableRemoteDataSize);
 
+  char nextKey[kKeyLen];
+  for (uint32_t i = 0; i < kKeyLen; i++) {
+    nextKey[i] = 'a';
+  }
   for (uint32_t i = 0; i < kNumKVPairs; i++) {
     Key key;
     Value value;
-    random_string(key.data, kKeyLen);
-    random_string(value.data, kValueLen);
+    for (uint32_t j = 0; j < kKeyLen; j++) {
+      key.data[j] = nextKey[j];
+    }
+    random_string(nextKey, kKeyLen);
+    uint32_t intermediate = i;
+    for (uint32_t j = 0; j < kKeyLen; j++) {
+      value.data[j] = nextKey[j];
+    }
+    for (uint32_t j = kKeyLen; j < kValueLen; j++) {
+      if (intermediate % 2 == 0) {
+        value.data[j] = 'o';
+      } else {
+        value.data[j] = 'i';
+      }
+      intermediate /= 2;
+    }
+    if (i < 10) {
+      cout << key.data << endl;
+      cout << value.data << endl;
+    }
     hopscotch.insert_tp(key, value);
     kvs[key] = value;
   }
-
+  cout << endl << endl << endl;
+  Key iteratorKey;
+  for (uint32_t i = 0; i < kKeyLen; i++) {
+    iteratorKey.data[i] = 'a';
+  }
+  for (uint32_t i = 0; i < kNumKVPairs; i++) {
+    std::optional<Value> optional_value;
+    optional_value = hopscotch.find_tp(iteratorKey);
+    if (i < 10) {
+      cout << iteratorKey.data << endl;
+    }
+    TEST_ASSERT(optional_value);
+    if (i < 10) {
+      cout << optional_value->data << endl;
+    }
+    uint32_t intermediate = i;
+    for (uint32_t j = 0; j < kKeyLen; j++) {
+      iteratorKey.data[j] = optional_value->data[j];
+    }
+    for (uint32_t j = kKeyLen; j < kValueLen; j++) {
+      if (intermediate % 2 == 0) {
+        TEST_ASSERT(optional_value->data[j] = 'o');
+      } else {
+        TEST_ASSERT(optional_value->data[j] = 'i');
+      }
+      intermediate /= 2;
+    }
+  }
+/*
   for (auto &[key, value] : kvs) {
     std::optional<Value> optional_value;
     optional_value = hopscotch.find_tp(key);
@@ -84,7 +134,7 @@ void do_work(FarMemManager *manager) {
     hopscotch.find_tp(key);
     TEST_ASSERT(!optional_value);
   }
-
+*/
   std::cout << "Passed" << std::endl;
 }
 
