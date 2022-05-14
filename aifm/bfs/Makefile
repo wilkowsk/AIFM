@@ -12,8 +12,8 @@ CXXFLAGS := $(filter-out -std=gnu++17,$(CXXFLAGS))
 override CXXFLAGS += -std=gnu++2a -fconcepts -Wno-unused-function -mcmodel=medium
 
 defule:
-	g++ -fopenmp -msse2 -msse3 -lm -g -O2 -o bfs main.cpp bfs.cpp graph.cpp 
+	g++ -fopenmp -msse2 -msse3 -lm -g -O2 -o bfs_up_down_sequential main.cpp bfs_up_down_sequential.cpp graph.cpp 
 test:
-	./bfs graphs/tiny.graph
+	./bfs_up_down_sequential graphs/tiny.graph
 clean:
-	rm -rf bfs *.o *~ *.*~
+	rm -rf bfs_up_down_sequential *.o *~ *.*~
