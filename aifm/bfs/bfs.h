@@ -5,13 +5,13 @@ struct graph;
 
 struct solution
 {
-    int* distances;
+    int* distances; // make into proper data type
 };
 
 struct vertex_set {
     int  count;
     int  alloc_count;
-    int* present;
+    int* present;   // same here
 };
 
 
