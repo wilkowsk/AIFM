@@ -73,13 +73,13 @@ int main(int argc, char** argv) {
     printf("  Nodes: %d\n", g.num_nodes);
 
     solution sol1;
-    sol1.distances = (int*)malloc(sizeof(int) * g.num_nodes);
+    sol1.distances = (int*)malloc(sizeof(int) * g.num_nodes); // sol1.distances = manager->allocate_array<int, g.num_nodes>();
     solution sol2;
-    sol2.distances = (int*)malloc(sizeof(int) * g.num_nodes);
+    sol2.distances = (int*)malloc(sizeof(int) * g.num_nodes); // sol2.distances = manager->allocate_array<int, g.num_nodes>();
     solution sol3;
-    sol3.distances = (int*)malloc(sizeof(int) * g.num_nodes);
+    sol3.distances = (int*)malloc(sizeof(int) * g.num_nodes); // sol3.distances = manager->allocate_array<int, g.num_nodes>();
 
-    // execute bottom-up version
+    // execute bottom-up version. this can be unco,mmented.
 
     //start_time = CycleTimer::currentSeconds();
     //bfs_bottom_up(&g, &sol1);
