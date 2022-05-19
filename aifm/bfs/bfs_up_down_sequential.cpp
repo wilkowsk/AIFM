@@ -19,7 +19,7 @@ void vertex_set_clear(vertex_set* list) {
     list->count = 0;
 }
 
-void vertex_set_init(vertex_set* list, int count) {
+void vertex_set_init(vertex_set* list, int count) { // replace with something more suitable for AIFM arrays
     list->alloc_count = count;
     list->present = (int*)malloc(sizeof(int) * list->alloc_count);
     vertex_set_clear(list);
@@ -29,19 +29,19 @@ void vertex_set_init(vertex_set* list, int count) {
 
 void bottom_up_step(
     graph* g,
-    vertex_set* frontier,    
+    vertex_set* frontier,    // make appropriate data types
     int* distances,
-    int iteration) {
+    int iteration) { // add DerefScope scope
     for (int i = 0; i < g->num_nodes; i++) {
         if (frontier->present[i] == BOTTOMUP_NOT_VISITED_MARKER) {
-            int start_edge = g->incoming_starts[i];
-            int end_edge = (i == g->num_nodes-1)? g->num_edges : g->incoming_starts[i + 1];
+            int start_edge = g->incoming_starts[i]; // int start_edge = g->incoming_starts.at(scope, i);
+            int end_edge = (i == g->num_nodes-1)? g->num_edges : g->incoming_starts[i + 1]; // int end_edge = (i == g->num_nodes-1)? g->num_edges : g->incoming_starts.at(scope, i+1);
             for(int neighbor = start_edge; neighbor < end_edge; neighbor ++) {
-                int incoming = g->incoming_edges[neighbor];
-                if(frontier->present[incoming] == iteration) {
-                    distances[i] = distances[incoming] + 1;
+                int incoming = g->incoming_edges[neighbor]; // int incoming = g->incoming_edges.at(scope, neighbor);
+                if(frontier->present[incoming] == iteration) { // if(frontier->present.at(scope, incoming) == iteration) {
+                    distances[i] = distances[incoming] + 1; // distances.at_mut(scope, i) = distances.at(scope, incoming) + 1;
                     frontier->count++;
-                    frontier->present[i] = iteration + 1;
+                    frontier->present[i] = iteration + 1; // frontier->present.at_mut(scope, i) = iteration + 1;
                     break;
                 }
             }
@@ -50,7 +50,7 @@ void bottom_up_step(
 
 }
 
-void bfs_bottom_up(graph* graph, solution* sol)
+void bfs_bottom_up(graph* graph, solution* sol) // add DerefScope scope
 {
     // 15-418/618 students:
     //
@@ -80,10 +80,10 @@ void bfs_bottom_up(graph* graph, solution* sol)
         
     // setup frontier with the root node    
     // just like put the root into queue
-    frontier->present[frontier->count++] = 1;
+    frontier->present[frontier->count++] = 1; // frontier->present.at_mut(scope, frontier->count++) = 1;
 
     // set the root distance with 0
-    sol->distances[ROOT_NODE_ID] = 0;
+    sol->distances[ROOT_NODE_ID] = 0; // sol->distances.at_mut(scope, ROOT_NODE_ID) = 0;
     
 
     // just like pop the queue
@@ -114,26 +114,26 @@ void bfs_bottom_up(graph* graph, solution* sol)
 // new_frontier.
 void top_down_step(
     graph* g,
-    vertex_set* frontier,
+    vertex_set* frontier, // make correct data types
     vertex_set* new_frontier,
-    int* distances)
+    int* distances) // add DerefScope scope
 {
 
     for (int i=0; i<frontier->count; i++) {
 
-        int node = frontier->present[i];
+        int node = frontier->present[i]; // int node = frontier->present.at(scope, i);
 
-        int start_edge = g->outgoing_starts[node];
-        int end_edge = (node == g->num_nodes-1) ? g->num_edges : g->outgoing_starts[node+1];
+        int start_edge = g->outgoing_starts[node]; // int start_edge = g->outgoing_starts.at(scope, node);
+        int end_edge = (node == g->num_nodes-1) ? g->num_edges : g->outgoing_starts[node+1]; // int end_edge = (node == g->num_nodes-1) ? g->num_edges : g->outgoing_starts.at(scope, node+1);
 
         // attempt to add all neighbors to the new frontier
         for (int neighbor=start_edge; neighbor<end_edge; neighbor++) {
-            int outgoing = g->outgoing_edges[neighbor];
+            int outgoing = g->outgoing_edges[neighbor]; // int outgoing = g->outgoing_edges.at(scope, neighbor);
 
-            if (distances[outgoing] == NOT_VISITED_MARKER) {
-                distances[outgoing] = distances[node] + 1;
+            if (distances[outgoing] == NOT_VISITED_MARKER) { // if (distances.at(scope, outgoing) == NOT_VISITED_MARKER) {
+                distances[outgoing] = distances[node] + 1; // distances.at_mut(scope, outgoing) = distances.at(scope, node) + 1;
                 int index = new_frontier->count++;
-                new_frontier->present[index] = outgoing;
+                new_frontier->present[index] = outgoing; // new_frontier->present.at_mut(scope, index) = outgoing;
             }
         }
     }
@@ -155,15 +155,15 @@ void bfs_top_down(graph* graph, solution* sol) {
 
     // initialize all nodes to NOT_VISITED
     for (int i=0; i<graph->num_nodes; i++)
-        sol->distances[i] = NOT_VISITED_MARKER;
+        sol->distances[i] = NOT_VISITED_MARKER; // sol->distances.at_mut(scope, i) = NOT_VISITED_MARKER;
     
         
     // setup frontier with the root node    
     // just like put the root into queue
-    frontier->present[frontier->count++] = ROOT_NODE_ID;
+    frontier->present[frontier->count++] = ROOT_NODE_ID; // frontier->present.at_mut(scope, frontier->count++) = ROOT_NODE_ID;
 
     // set the root distance with 0
-    sol->distances[ROOT_NODE_ID] = 0;
+    sol->distances[ROOT_NODE_ID] = 0; // sol->distances.at_mut(scope, ROOT_NODE_ID) = 0;
 
     // just like pop the queue
     while (frontier->count != 0) {
@@ -177,7 +177,7 @@ void bfs_top_down(graph* graph, solution* sol) {
         double end_time = CycleTimer::currentSeconds();
         printf("frontier=%-10d %.4f sec\n", frontier->count, end_time - start_time);
 
-        // swap pointers
+        // swap pointers. good thing these are pointers or we'd have to do something more complex
         vertex_set* tmp = frontier;
         frontier = new_frontier;
         new_frontier = tmp;
