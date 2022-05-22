@@ -30,7 +30,7 @@ void vertex_set_init(vertex_set* list, int count) { // replace with something mo
 void bottom_up_step(
     graph* g,
     vertex_set* frontier,    // auto frontier = manager->allocate_array<vertex_set, kNumEntries>();
-    int* distances,
+    int* distances,  // auto distances = manager->allocate_array<vertex_set, kNumEntries>();
     int iteration /*, DerefScope scope*/) {
     for (int i = 0; i < g->num_nodes; i++) {
         if (frontier->present[i] == BOTTOMUP_NOT_VISITED_MARKER) {
