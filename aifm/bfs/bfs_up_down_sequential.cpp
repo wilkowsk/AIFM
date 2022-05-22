@@ -29,9 +29,9 @@ void vertex_set_init(vertex_set* list, int count) { // replace with something mo
 
 void bottom_up_step(
     graph* g,
-    vertex_set* frontier,    // make appropriate data types
+    vertex_set* frontier,    // auto frontier = manager->allocate_array<vertex_set, kNumEntries>();
     int* distances,
-    int iteration) { // add DerefScope scope
+    int iteration /*, DerefScope scope*/) {
     for (int i = 0; i < g->num_nodes; i++) {
         if (frontier->present[i] == BOTTOMUP_NOT_VISITED_MARKER) {
             int start_edge = g->incoming_starts[i]; // int start_edge = g->incoming_starts.at(scope, i);
@@ -50,7 +50,7 @@ void bottom_up_step(
 
 }
 
-void bfs_bottom_up(graph* graph, solution* sol) // add DerefScope scope
+void bfs_bottom_up(graph* graph, solution* sol /*, DerefScope scope*/)
 {
     // 15-418/618 students:
     //
@@ -70,7 +70,7 @@ void bfs_bottom_up(graph* graph, solution* sol) // add DerefScope scope
     // vertex_set_init(&list2, graph->num_nodes);
     int iteration = 1;
 
-    vertex_set* frontier = &list1;
+    vertex_set* frontier = &list1; // auto frontier = manager->allocate_array<vertex_set, kNumEntries>();
     // vertex_set* new_frontier = &list2;
 
     // initialize all nodes to NOT_VISITED
@@ -116,7 +116,7 @@ void top_down_step(
     graph* g,
     vertex_set* frontier, // make correct data types
     vertex_set* new_frontier,
-    int* distances) // add DerefScope scope
+    int* distances /*, DerefScope scope*/) // add DerefScope scope
 {
 
     for (int i=0; i<frontier->count; i++) {
@@ -150,8 +150,8 @@ void bfs_top_down(graph* graph, solution* sol) {
     vertex_set_init(&list1, graph->num_nodes);
     vertex_set_init(&list2, graph->num_nodes);
 
-    vertex_set* frontier = &list1;
-    vertex_set* new_frontier = &list2;
+    vertex_set* frontier = &list1; // auto frontier = manager->allocate_array<vertex_set, kNumEntries>();
+    vertex_set* new_frontier = &list2; // auto new_frontier = manager->allocate_array<vertex_set, kNumEntries>();
 
     // initialize all nodes to NOT_VISITED
     for (int i=0; i<graph->num_nodes; i++)
