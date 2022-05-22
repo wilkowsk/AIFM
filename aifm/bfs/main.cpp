@@ -58,12 +58,12 @@ int main(int argc, char** argv) {
 
     graph g;
 
-    printf("----------------------------------------------------------\n");
-    printf("OMP Max system threads = %d\n", omp_get_max_threads());
-    if (num_threads > 0)
-        omp_set_num_threads(num_threads);
-    printf("OMP will use at most %d threads.\n", omp_get_max_threads());
-    printf("----------------------------------------------------------\n");
+    //printf("----------------------------------------------------------\n");
+    //printf("OMP Max system threads = %d\n", omp_get_max_threads());
+    //if (num_threads > 0)
+    //    omp_set_num_threads(num_threads);
+    //printf("OMP will use at most %d threads.\n", omp_get_max_threads());
+    //printf("----------------------------------------------------------\n");
 
     printf("Loading graph (this can take some time for the bigger graphs)...\n");
     load_graph_binary(graph_filename.c_str(), &g);
