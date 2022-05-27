@@ -1,0 +1,23 @@
+TARGET   = bfs
+OBJS     = bfs_up_down_sequential.o graph.o main.o
+
+# AIFM RUNTIME CONFIGURATION
+AIFM_PATH=../..
+SHENANGO_PATH=$(AIFM_PATH)/shenango
+include $(SHENANGO_PATH)/shared.mk
+librt_libs = $(SHENANGO_PATH)/bindings/cc/librt++.a
+libaifm = $(AIFM_PATH)/aifm/libaifm.a
+
+INC += -I$(SHENANGO_PATH)/bindings/cc -I$(AIFM_PATH)/aifm/inc -I$(SHENANGO_PATH)/ksched -I$(SHENANGO_PATH)/inc/runtime
+
+CXXFLAGS := $(filter-out -std=gnu++17,$(CXXFLAGS))
+override CXXFLAGS += -std=gnu++2a -fconcepts -Wno-unused-function -mcmodel=medium
+CXXFLAGS += -g -I. $(INC)
+
+all: bfs
+
+bfs: $(OBJS)
+	$(CXX) $(CXXFLAGS) $(OBJS) $(librt_libs) $(LDFLAGS) $(libaifm) $(librt_libs) $(LIBS) $(RUNTIME_LIBS) -lm -o $(TARGET) $(librt_libs) $(RUNTIME_LIBS)
+
+%.o : %.cpp
+	$(CXX) $(CXXFLAGS) -D_GNU_SOURCE -D_XOPEN_SOURCE=600 -c $<

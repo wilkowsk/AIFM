@@ -252,7 +252,7 @@ void load_graph_binary(const char* filename, graph* graph) {
     fclose(input);
 
     build_incoming_edges(graph);
-    //print_graph(graph);
+    print_graph(graph);
 }
 
 void store_graph_binary(const char* filename, graph* graph) {

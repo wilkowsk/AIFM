@@ -18,13 +18,13 @@
 #clean:
 #	rm -rf bfs_up_down_sequential *.o *~ *.*~
 #
-AIFM_PATH=..
-SHENANGO_PATH=$(AIFM_PATH)/../shenango
+AIFM_PATH=../..
+SHENANGO_PATH=$(AIFM_PATH)/shenango
 include $(SHENANGO_PATH)/shared.mk
 
 librt_libs = $(SHENANGO_PATH)/bindings/cc/librt++.a
-INC += -I$(SHENANGO_PATH)/bindings/cc -I$(SHENANGO_PATH)/ksched -I../inc \
-       -I../DataFrame/AIFM/include/
+INC += -I$(SHENANGO_PATH)/bindings/cc -I$(SHENANGO_PATH)/ksched -I$(AIFM_PATH)/aifm/inc \
+       -I$(AIFM_PATH)/aifm/DataFrame/AIFM/include/
 
 test_bfs_up_down_sequential_src = bfs_up_down_sequential.cpp
 test_bfs_up_down_sequential_obj = $(test_bfs_up_down_sequential_src:.cpp=.o)
@@ -56,16 +56,16 @@ override CXXFLAGS += -std=gnu++2a -fconcepts -Wno-unused-function
 CXXFLAGS := $(filter-out -std=gnu++17,$(CXXFLAGS))
 override LDFLAGS += -lnuma
 
-all: bfs_up_down_sequential graph main libaifm.a
+all: main libaifm.a #graph bfs_up_down_sequential
 
-graph: $(test_graph_obj) $(test_main_obj) $(test_bfs_up_down_sequential_obj) $(librt_libs) $(RUNTIME_DEPS) $(lib_obj)
+#graph: $(test_graph_obj) $(test_main_obj) $(test_bfs_up_down_sequential_obj) $(librt_libs) $(RUNTIME_DEPS) $(lib_obj)
+#	$(LDXX) -o $@ $^ $(lib_obj) $(librt_libs) $(RUNTIME_LIBS) $(LDFLAGS)
+
+main: $(test_main_obj) $(librt_libs) $(RUNTIME_DEPS) $(lib_obj)
 	$(LDXX) -o $@ $^ $(lib_obj) $(librt_libs) $(RUNTIME_LIBS) $(LDFLAGS)
 
-main: $(test_graph_obj) $(test_main_obj) $(test_bfs_up_down_sequential_obj) $(librt_libs) $(RUNTIME_DEPS) $(lib_obj)
-	$(LDXX) -o $@ $^ $(lib_obj) $(librt_libs) $(RUNTIME_LIBS) $(LDFLAGS)
-
-bfs_up_down_sequential: $(test_graph_obj) $(test_main_obj) $(test_bfs_up_down_sequential_obj) $(librt_libs) $(RUNTIME_DEPS) $(lib_obj)
-	$(LDXX) -o $@ $^ $(lib_obj) $(librt_libs) $(RUNTIME_LIBS) $(LDFLAGS)
+#bfs_up_down_sequential: $(test_graph_obj) $(test_main_obj) $(test_bfs_up_down_sequential_obj) $(librt_libs) $(RUNTIME_DEPS) $(lib_obj)
+#	$(LDXX) -o $@ $^ $(lib_obj) $(librt_libs) $(RUNTIME_LIBS) $(LDFLAGS)
 
 $(tcp_device_server_obj): $(tcp_device_server_src)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
