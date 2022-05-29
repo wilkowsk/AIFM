@@ -15,14 +15,7 @@ rerun_local_iokerneld
 rerun_mem_server
 
 # Run Fluidanimate
-run_program ./bfs > logs.txt
-
-if cat logs.txt | grep "Passed"; then
-    say_passed
-else
-    say_failed
-    all_passed=0
-fi
+./bfs ./tmp/15418/random_20m.graph
 
 sleep 3
 
