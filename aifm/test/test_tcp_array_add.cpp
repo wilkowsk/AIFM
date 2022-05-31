@@ -92,7 +92,7 @@ public:
       DerefScope scope;
       graph besenj;
       far_memory::DataFrameVector<int> dataframe_vector = manager->allocate_dataframe_vector<int>();
-      besenj.outgoing_starts
+      besenj.outgoing_starts;
       for (int i = 0; i < 5; i++) {
         int arraye[] = {0,4,6,7,8};
         besenj.outgoing_starts->push_back(scope, arraye[i]);
