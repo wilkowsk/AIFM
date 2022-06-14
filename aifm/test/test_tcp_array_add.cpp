@@ -21,6 +21,13 @@ extern "C" {
 
 #include <random>
 
+#include <string>
+#include <iostream>
+#include <fstream>
+#include <sstream>
+
+#define GRAPH_HEADER_TOKEN 0xDEADBEEF
+
 using namespace far_memory;
 
 constexpr uint64_t kCacheSize = (128ULL << 20);
@@ -125,84 +132,84 @@ public:
   }
 
   void bottom_up_sort(
-    FarMemManager *manager,
-    DataFrameVector<int>* distances,
-    DataFrameVector<int>* graph) {
-      DerefScope scope;
+  FarMemManager *manager,
+  DataFrameVector<int>* distances,
+  DataFrameVector<int>* graph) {
+    DerefScope scope;
 
-      int num_edges = graphAt(graph, &scope, 0, 0);
-      int num_nodes = graphAt(graph, &scope, 1, 0);
+    int num_edges = graphAt(graph, &scope, 0, 0);
+    int num_nodes = graphAt(graph, &scope, 1, 0);
 
-      for (int i = 0; i < num_nodes; i++) {
-        if (i == ROOT_NODE_ID) {
-          distances->push_back(scope, 0);
-        } else {
-          distances->push_back(scope, -1);
-        }
+    for (int i = 0; i < num_nodes; i++) {
+      if (i == ROOT_NODE_ID) {
+        distances->push_back(scope, 0);
+      } else {
+        distances->push_back(scope, -1);
       }
-      auto vertex_set = manager->allocate_dataframe_vector<int>();
-      auto frontier = &vertex_set;
-
-      int count = num_nodes - 1;
-      int newCount = count;
-      int iterator = 0;
-
-      for (int i = 0; i < num_nodes; i++) {
-        if (i != ROOT_NODE_ID) {
-          frontier->push_back(scope, i);
-        }
-      }
-
-      while (count != 0) {
-        newCount = count;
-        for (int i = count - 1; i >= 0; i--) {
-          int node = frontier->at(scope, i);          // establish the node
-          //std::cout << "Working on node " << node << std::endl;
-          int start_edge;
-          {
-            start_edge = graphAt(graph, &scope, 4, node);
-            // establish the edge range: start
-          }
-          int end_edge;
-          if (node == num_nodes - 1) {
-            end_edge = num_edges;
-          } else {
-            end_edge = graphAt(graph, &scope, 4, node + 1);
-            // establish the edge range: end
-          }
-          for (int neighbor = start_edge; neighbor < end_edge; neighbor++) { // for each edge:
-            int outgoing;
-            {
-              outgoing = graphAt(graph, &scope, 5, neighbor);
-              // establish the neighboring nodes
-            }
-            if (distances->at(scope, outgoing) == iterator) {  // when the node is on the frontier,
-              distances->at_mut(scope, node) = iterator + 1;  // write its distance
-              newCount--;                             // decrement the new count
-              {
-                auto temp = frontier->at(scope, i);
-                frontier->at_mut(scope, i) = frontier->at(scope, newCount);
-                frontier->at_mut(scope, newCount) = temp;
-              }
-              frontier->pop_back(scope);
-              //std::cout << "Linked to node " << outgoing << std::endl;
-              break;
-            }
-          }
-        }
-        //std::cout << "------" << std::endl;
-        if (newCount == count) {
-          //std::cout << "This graph is not connected. ERROR." << std::endl;
-          break;
-        }
-        count = newCount;
-        iterator++;
-      }
-      
-      auto vertex_set2 = manager->allocate_dataframe_vector<int>();
-      auto new_frontier = &vertex_set2;
-      return;
     }
+    auto vertex_set = manager->allocate_dataframe_vector<int>();
+    auto frontier = &vertex_set;
+
+    int count = num_nodes - 1;
+    int newCount = count;
+    int iterator = 0;
+
+    for (int i = 0; i < num_nodes; i++) {
+      if (i != ROOT_NODE_ID) {
+        frontier->push_back(scope, i);
+      }
+    }
+
+    while (count != 0) {
+      newCount = count;
+      for (int i = count - 1; i >= 0; i--) {
+        int node = frontier->at(scope, i);          // establish the node
+        //std::cout << "Working on node " << node << std::endl;
+        int start_edge;
+        {
+          start_edge = graphAt(graph, &scope, 4, node);
+          // establish the edge range: start
+        }
+        int end_edge;
+        if (node == num_nodes - 1) {
+          end_edge = num_edges;
+        } else {
+          end_edge = graphAt(graph, &scope, 4, node + 1);
+          // establish the edge range: end
+        }
+        for (int neighbor = start_edge; neighbor < end_edge; neighbor++) { // for each edge:
+          int outgoing;
+          {
+            outgoing = graphAt(graph, &scope, 5, neighbor);
+            // establish the neighboring nodes
+          }
+          if (distances->at(scope, outgoing) == iterator) {  // when the node is on the frontier,
+            distances->at_mut(scope, node) = iterator + 1;  // write its distance
+            newCount--;                             // decrement the new count
+            {
+              auto temp = frontier->at(scope, i);
+              frontier->at_mut(scope, i) = frontier->at(scope, newCount);
+              frontier->at_mut(scope, newCount) = temp;
+            }
+            frontier->pop_back(scope);
+            //std::cout << "Linked to node " << outgoing << std::endl;
+            break;
+          }
+        }
+      }
+      //std::cout << "------" << std::endl;
+      if (newCount == count) {
+        //std::cout << "This graph is not connected. ERROR." << std::endl;
+        break;
+      }
+      count = newCount;
+      iterator++;
+    }
+    
+    auto vertex_set2 = manager->allocate_dataframe_vector<int>();
+    auto new_frontier = &vertex_set2;
+    return;
+  }
 
   void do_work(FarMemManager *manager) {
     std::cout << "Running " << __FILE__ "..." << std::endl;
@@ -224,179 +231,179 @@ public:
     auto usedNumbers = manager->allocate_dataframe_vector<int>();
     int num_edges;
     int num_nodes;
-    for (int repeats = 0; repeats < 100; repeats++) {
+    for (int repeats = 0; repeats < 1; repeats++) {
       {
         DerefScope scope;
+
         graph.clear();
         distances.clear();
         distances2.clear();
         usedNumbers.clear();
-
-        int arraySize = 800000;
-
+        int arraySize = 100000;
         std::random_device rd;
         std::mt19937_64 eng(rd());
         std::uniform_int_distribution<uint64_t> distr(0, arraySize - 1); // an edge has only a small chance to be present.
 
-        //int edges[arraySize][arraySize];    // each entry indicates whether an edge exists between two nodes.
-        //for (int i = 0; i < arraySize; i++) {
-        //  edges[i][i] = 0;
-        //  for (int j = 0; j < arraySize; j++) { // for each distinct pair of nodes:
-        //    int random_num = distr(eng);
-        //    if (random_num != 1 || j == i) {
-        //      random_num = 0;           // if the random num wasn't 1, set it to 0.
-        //    }
-        //    if (j == i + 1) {
-        //      random_num = 1;           // if the two nodes are consecutive, add the edge anyway.
-        //    }
-        //    edges[i][j] = random_num;
-        //    // edges[j][i] = random_num;
-        //  }
-        //}
-//
-        //int countEdges = 0;
-        //for (int i = 0; i < arraySize; i++) {
-        //  for (int j = 0; j < arraySize; j++) {
-        //    std::cout << edges[i][j];
-        //    if (edges[i][j] == 1) {
-        //    countEdges++;
-        //    }
-        //  }
-//
-        //  std::cout << std::endl;
-        //}
+        { // - 
+          //int edges[arraySize][arraySize];    // each entry indicates whether an edge exists between two nodes.
+          //for (int i = 0; i < arraySize; i++) {
+          //  edges[i][i] = 0;
+          //  for (int j = 0; j < arraySize; j++) { // for each distinct pair of nodes:
+          //    int random_num = distr(eng);
+          //    if (random_num != 1 || j == i) {
+          //      random_num = 0;           // if the random num wasn't 1, set it to 0.
+          //    }
+          //    if (j == i + 1) {
+          //      random_num = 1;           // if the two nodes are consecutive, add the edge anyway.
+          //    }
+          //    edges[i][j] = random_num;
+          //    // edges[j][i] = random_num;
+          //  }
+          //}
 
-        
-        //graph.at_mut(scope, 0).push_back(scope, countEdges); // graph[0].push_back(scope, countEdges);
-        //graph.at_mut(scope, 1).push_back(scope, arraySize); // graph[1].push_back(scope, arraySize);
-        //int runningOffset = 0;
-        //for (int i = 0; i < arraySize; i++) {
-        //  graph.at_mut(scope, 2).push_back(scope, runningOffset); // graph[2].push_back(scope, runningOffset);
-        //  for (int j = 0; j < arraySize; j++) {
-        //    if (edges[i][j] == 1) {
-        //      graph.at_mut(scope, 3).push_back(scope, j); // graph[3].push_back(scope, j);
-        //      runningOffset++;
-        //    }
-        //  }
-        //}
-        
-        int runningOffset = 0;
-        for (int i = 0; i < arraySize; i++) {
-          if (i % 10000 == 9999) {
-            std::cout << i + 1 << std::endl;
-          }
-          if (DO_PRINT) {
-            std::cout << "Node " << i << " running offset: " << runningOffset << "     ";
-            std::cout << "Linked nodes:";
-          }
-          int oldOffset = runningOffset;
-          if (i == arraySize - 1) {
-            int temp = distr(eng);
-            usedNumbers.push_back(scope, temp);
-          } else {
-            usedNumbers.push_back(scope, i + 1);
-          }
-          int outDegree = 4;
-          int currentOutDegree = 1;
-          while (currentOutDegree < outDegree) {
-            int random_num = distr(eng);
-            bool isUnique = true;
-            for (int j = 0; j < currentOutDegree; j++) {
-              if (usedNumbers.at(scope, j) == random_num) {
-                isUnique = false;
+          //int countEdges = 0;
+          //for (int i = 0; i < arraySize; i++) {
+          //  for (int j = 0; j < arraySize; j++) {
+          //    std::cout << edges[i][j];
+          //    if (edges[i][j] == 1) {
+          //    countEdges++;
+          //    }
+          //  }
+
+          //  std::cout << std::endl;
+          //}
+
+
+          //graph.at_mut(scope, 0).push_back(scope, countEdges); // graph[0].push_back(scope, countEdges);
+          //graph.at_mut(scope, 1).push_back(scope, arraySize); // graph[1].push_back(scope, arraySize);
+          //int runningOffset = 0;
+          //for (int i = 0; i < arraySize; i++) {
+          //  graph.at_mut(scope, 2).push_back(scope, runningOffset); // graph[2].push_back(scope, runningOffset);
+          //  for (int j = 0; j < arraySize; j++) {
+          //    if (edges[i][j] == 1) {
+          //      graph.at_mut(scope, 3).push_back(scope, j); // graph[3].push_back(scope, j);
+          //      runningOffset++;
+          //    }
+          //  }
+          //}
+        }
+
+        { // graphgen 
+          int runningOffset = 0;
+          for (int i = 0; i < arraySize; i++) {
+            if (DO_PRINT) {
+              std::cout << "Node " << i << " running offset: " << runningOffset << "     ";
+              std::cout << "Linked nodes:";
+            }
+            int oldOffset = runningOffset;
+            if (i == arraySize - 1) {
+              int temp = distr(eng);
+              usedNumbers.push_back(scope, temp);
+            } else {
+              usedNumbers.push_back(scope, i + 1);
+            }
+            int outDegree = 4;
+            int currentOutDegree = 1;
+            while (currentOutDegree < outDegree) {
+              int random_num = distr(eng);
+              bool isUnique = true;
+              for (int j = 0; j < currentOutDegree; j++) {
+                if (usedNumbers.at(scope, j) == random_num) {
+                  isUnique = false;
+                }
+              }
+              if (isUnique && random_num != i) {
+                usedNumbers.push_back(scope, random_num);
+                currentOutDegree++;
               }
             }
-            if (isUnique && random_num != i) {
-              usedNumbers.push_back(scope, random_num);
-              currentOutDegree++;
+            for (int j = 0; j < outDegree; j++) {
+              //int random_num = distr(eng);
+              //if (random_num != 1 || j == i) {
+              //  random_num = 0;           // if the random num wasn't 1, set it to 0.
+              //}
+              //if (j == i + 1) {
+              //  random_num = 1;           // if the two nodes are consecutive, add the edge anyway.
+              //}
+              //if (random_num == 1) {
+              //  if (DO_PRINT) {
+              //    std::cout << " " << j;
+              //  }
+              //  for (int k = 0; k < 6; k++) {
+              //    graph.push_back(scope, -1);
+              //  }
+              //  graphSet(&graph, &scope, 3, runningOffset, j); // graph[3].push_back(scope, j);
+              //  runningOffset++;
+              //}
+              if (DO_PRINT) {
+                std::cout << " " << usedNumbers.at(scope, j);
+              }
+              for (int k = 0; k < 6; k++) {
+                graph.push_back(scope, -1);
+              }
+              graphSet(&graph, &scope, 3, runningOffset, usedNumbers.at(scope, j)); // graph[3].push_back(scope, j);
+              runningOffset++;
             }
-          }
-          for (int j = 0; j < outDegree; j++) {
-            //int random_num = distr(eng);
-            //if (random_num != 1 || j == i) {
-            //  random_num = 0;           // if the random num wasn't 1, set it to 0.
-            //}
-            //if (j == i + 1) {
-            //  random_num = 1;           // if the two nodes are consecutive, add the edge anyway.
-            //}
-            //if (random_num == 1) {
-            //  if (DO_PRINT) {
-            //    std::cout << " " << j;
-            //  }
-            //  for (int k = 0; k < 6; k++) {
-            //    graph.push_back(scope, -1);
-            //  }
-            //  graphSet(&graph, &scope, 3, runningOffset, j); // graph[3].push_back(scope, j);
-            //  runningOffset++;
-            //}
+            graphSet(&graph, &scope, 2, i, oldOffset);
             if (DO_PRINT) {
-              std::cout << " " << usedNumbers.at(scope, j);
+              std::cout << std::endl;
             }
-            for (int k = 0; k < 6; k++) {
-              graph.push_back(scope, -1);
-            }
-            graphSet(&graph, &scope, 3, runningOffset, usedNumbers.at(scope, j)); // graph[3].push_back(scope, j);
-            runningOffset++;
+            usedNumbers.clear();
           }
-          graphSet(&graph, &scope, 2, i, oldOffset);
-          if (DO_PRINT) {
-            std::cout << std::endl;
-          }
-          usedNumbers.clear();
+          graphSet(&graph, &scope, 1, 0, arraySize);
+          graphSet(&graph, &scope, 0, 0, runningOffset);
         }
-        graphSet(&graph, &scope, 1, 0, arraySize);
-        graphSet(&graph, &scope, 0, 0, runningOffset);
-        
 
-        //runningOffset = 0;
-        //for (int i = 0; i < arraySize; i++) {
-        //  graph.at_mut(scope, 4).push_back(scope, runningOffset);
-        //  for (int j = 0; j < arraySize; j++) {
-        //    if (edges[j][i] == 1) {
-        //      graph.at_mut(scope, 5).push_back(scope, j);
-        //      runningOffset++;
-        //    }
-        //  }
-        //}
+        { // - 
+          //runningOffset = 0;
+          //for (int i = 0; i < arraySize; i++) {
+          //  graph.at_mut(scope, 4).push_back(scope, runningOffset);
+          //  for (int j = 0; j < arraySize; j++) {
+          //    if (edges[j][i] == 1) {
+          //      graph.at_mut(scope, 5).push_back(scope, j);
+          //      runningOffset++;
+          //    }
+          //  }
+          //}
 
-        //// 0: number of edges
-        //// 1: number of nodes
-        //// 2: outgoing indices/starts
-        //// 3: outgoing destins/edges
-        //// 4: incoming indices/starts
-        //// 5: incoming destins/edges
-        //graph.at_mut(scope, 1).push_back(scope, arraySize);
-        //int runningOffset = 0;
-        //for (int i = 0; i < arraySize; i++) {
-        //  graph.at_mut(scope, 2).push_back(scope, runningOffset);
-        //  graph.at_mut(scope, 3).push_back(scope, i + 1);
-        //  runningOffset++;
-        //  int arraye[2];
-        //  for (int j = 0; j < 2; j++) {
-        //    int potential = i;
-        //    bool usePotential = false;
-        //    while (!usePotential) {
-        //      std::cout << "besenj";
-        //      potential = distr(eng);
-        //      usePotential = (potential != i) && (potential != i + 1);
-        //      for (int k = 0; (k < j) && !usePotential; k++) {
-        //        if (potential == arraye[k]) {
-        //          usePotential = false;
-        //        }
-        //      }
-        //    }
-        //    graph.at_mut(scope, 3).push_back(scope, potential);
-        //    arraye[j] = potential;
-        //    runningOffset++;
-        //  }
-        //}
-        //graph.at_mut(scope, 0).push_back(scope, runningOffset);
+          //// 0: number of edges
+          //// 1: number of nodes
+          //// 2: outgoing indices/starts
+          //// 3: outgoing destins/edges
+          //// 4: incoming indices/starts
+          //// 5: incoming destins/edges
+          //graph.at_mut(scope, 1).push_back(scope, arraySize);
+          //int runningOffset = 0;
+          //for (int i = 0; i < arraySize; i++) {
+          //  graph.at_mut(scope, 2).push_back(scope, runningOffset);
+          //  graph.at_mut(scope, 3).push_back(scope, i + 1);
+          //  runningOffset++;
+          //  int arraye[2];
+          //  for (int j = 0; j < 2; j++) {
+          //    int potential = i;
+          //    bool usePotential = false;
+          //    while (!usePotential) {
+          //      std::cout << "besenj";
+          //      potential = distr(eng);
+          //      usePotential = (potential != i) && (potential != i + 1);
+          //      for (int k = 0; (k < j) && !usePotential; k++) {
+          //        if (potential == arraye[k]) {
+          //          usePotential = false;
+          //        }
+          //      }
+          //    }
+          //    graph.at_mut(scope, 3).push_back(scope, potential);
+          //    arraye[j] = potential;
+          //    runningOffset++;
+          //  }
+          //}
+          //graph.at_mut(scope, 0).push_back(scope, runningOffset);
+        }
 
-        
         num_edges = graphAt(&graph, &scope, 0, 0);
         num_nodes = graphAt(&graph, &scope, 1, 0);
 
-        { // for incoming edges
+        { // for incoming edges 
           auto node_counts = manager->allocate_dataframe_vector<int>();
           auto node_scatter = manager->allocate_dataframe_vector<int>();
           for (int i = 0; i < num_nodes; i++) {
@@ -457,59 +464,61 @@ public:
           }
         }
 
-        //std::cout << graph.at_mut(scope, 3).at(scope, 6) << std::endl;
-
-        if (DO_PRINT) {
-          for (int i = 0; i < num_nodes; i++) {
-            int starting = graphAt(&graph, &scope, 2, i);
-            int ending = (i == num_nodes - 1) ? (num_edges) : (graphAt(&graph, &scope, 2, i + 1));
-            // int ending = (i == num_nodes - 1) ? (num_edges) : (graphAt(graph, scope, 2, i + 1));
-            std::cout << "Info ~ Node " << i << " [[ " << starting << " ]] is linked to nodes:";
-            for (int j = starting; j < ending; j++) {
-              std::cout << " " << graphAt(&graph, &scope, 3, j);
+        { // graph print 
+          if (DO_PRINT) {
+            for (int i = 0; i < num_nodes; i++) {
+              int starting = graphAt(&graph, &scope, 2, i);
+              int ending = (i == num_nodes - 1) ? (num_edges) : (graphAt(&graph, &scope, 2, i + 1));
+              // int ending = (i == num_nodes - 1) ? (num_edges) : (graphAt(graph, scope, 2, i + 1));
+              std::cout << "Info ~ Node " << i << " [[ " << starting << " ]] is linked to nodes:";
+              for (int j = starting; j < ending; j++) {
+                std::cout << " " << graphAt(&graph, &scope, 3, j);
+              }
+              std::cout << std::endl;
             }
-            std::cout << std::endl;
           }
         }
 
-        //for (int i = 0; i < 5; i++) {
-        //  int arraye[] = {0,4,6,7,8};
-        //  graph.at_mut(scope, 2).push_back(scope, arraye[i]);
-        //}
-        //for (int i = 0; i < 5; i++) {
-        //  int arraye[] = {0,2,3,5,7};
-        //  graph.at_mut(scope, 4).push_back(scope, arraye[i]);
-        //}
-        //for (int i = 0; i < 8; i++) {
-        //  int arraye[] = {1,2,3,4,2,3,0,0};
-        //  graph.at_mut(scope, 3).push_back(scope, arraye[i]);
-        //}
-        //for (int i = 0; i < 8; i++) {
-        //  int arraye[] = {2,3,0,0,1,0,1,0};
-        //  graph.at_mut(scope, 5).push_back(scope, arraye[i]);
-        //}
-        //for (int i = 0; i < 6; i++) {
-        //  int arraye[] = {1,1,5,8,5,8};
-        //  for (int j = 0; j < arraye[i]; j++) {
-        //    auto temp = &graph.at_mut(scope, i);
-        //    std::cout << temp->at(scope, j);
-        //  }
-        //  std::cout << std::endl;
-        //}
-        
-
-        //graph.at_mut(scope, 1).at_mut(scope, 0) = 9;
+        { // - 
+          //for (int i = 0; i < 5; i++) {
+          //  int arraye[] = {0,4,6,7,8};
+          //  graph.at_mut(scope, 2).push_back(scope, arraye[i]);
+          //}
+          //for (int i = 0; i < 5; i++) {
+          //  int arraye[] = {0,2,3,5,7};
+          //  graph.at_mut(scope, 4).push_back(scope, arraye[i]);
+          //}
+          //for (int i = 0; i < 8; i++) {
+          //  int arraye[] = {1,2,3,4,2,3,0,0};
+          //  graph.at_mut(scope, 3).push_back(scope, arraye[i]);
+          //}
+          //for (int i = 0; i < 8; i++) {
+          //  int arraye[] = {2,3,0,0,1,0,1,0};
+          //  graph.at_mut(scope, 5).push_back(scope, arraye[i]);
+          //}
+          //for (int i = 0; i < 6; i++) {
+          //  int arraye[] = {1,1,5,8,5,8};
+          //  for (int j = 0; j < arraye[i]; j++) {
+          //    auto temp = &graph.at_mut(scope, i);
+          //    std::cout << temp->at(scope, j);
+          //  }
+          //  std::cout << std::endl;
+          //}
 
 
+          //graph.at_mut(scope, 1).at_mut(scope, 0) = 9;
 
-        //for (int i = 0; i < num_nodes; i++) {
-        //  std::cout << distances.at_mut(scope, i);
-        //}
-        //std::cout << std::endl;
+
+
+          //for (int i = 0; i < num_nodes; i++) {
+          //  std::cout << distances.at_mut(scope, i);
+          //}
+          //std::cout << std::endl;
+        }
       }
         top_down_sort(manager, &distances, &graph);
         bottom_up_sort(manager, &distances2, &graph);
-      {
+      { // compare 
         DerefScope scope;
           if (DO_PRINT) {
           for (int i = 0; i < num_nodes; i++) {
