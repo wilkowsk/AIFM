@@ -67,7 +67,7 @@ public:
       break;
     }
     loc += y;               // add y to the offset determined above
-    //std::cout << " { " << x << " " << y << " " << loc; // test statement, can remove
+    //std::cout << " { " << x << " " << y << " " << loc << " } "; // test statement, can remove
     return loc;             // return loc
   }
 
@@ -77,7 +77,6 @@ public:
   int x,
   int y) {
     int funcOutput = graph->at_mut(*scope, graphLoc(graph, scope, x, y)); // return the element at (x,y)
-    //std::cout << " } ";
     return funcOutput;
   }
 
@@ -88,7 +87,6 @@ public:
   int y,
   int target) {
     graph->at_mut(*scope, graphLoc(graph, scope, x, y)) = target; // set the element at (x,y) to target
-    //std::cout << " } ";
   }
 
   void top_down_sort(
@@ -119,14 +117,18 @@ public:
     auto new_frontier = &vertex_set2;               // make a frontier of the current layer of nodes
                                                     // this will remain empty for now.
 
-    //std::cout << std::endl;
+    if (DO_PRINT) {
+      std::cout << std::endl;
+    }
     while (count != 0) {  // while there are still nodes to sort through...
       newCount = 0;           // we're working on a new layer, so it's empty for now
       new_frontier->clear();  // therefore, clear the new frontier
       {
         for (int i = 0; i < count; i++) {           // for each node in the frontier:
           int node = frontier->at(scope, i);          // establish the node
-          //std::cout << "Working on node " << node << std::endl;
+          if (DO_PRINT) {
+            std::cout << "Working on node " << node << std::endl;
+          }
           int start_edge = graphAt(graph, &scope, 2, node); // establish the edge range: start
           int end_edge;
           if (node == num_nodes - 1) {
@@ -140,12 +142,16 @@ public:
               distances->at_mut(scope, outgoing) = distances->at(scope, node) + 1;  // write its distance
               newCount++;                                                           // increment the new count
               new_frontier->push_back(scope, outgoing);                             // add the node to the new frontier
-              //std::cout << "Linked node " << outgoing << std::endl;
+              if (DO_PRINT) {
+                std::cout << "Linked node " << outgoing << std::endl;
+              }
             }
           }
         }
       }
-      //std::cout << "------" << std::endl;
+      if (DO_PRINT) {
+        std::cout << "------" << std::endl;
+      }
       {
         auto temp = frontier;       // swap the frontiers -- we're moving to the next layer now
         frontier = new_frontier;
@@ -189,7 +195,9 @@ public:
       newCount = count;                           // TODO: test whether this line is unnecessary.
       for (int i = count - 1; i >= 0; i--) {      // for each node...
         int node = frontier->at(scope, i);          // establish the node
-        //std::cout << "Working on node " << node << std::endl;
+        if (DO_PRINT) {
+          std::cout << "Working on node " << node << std::endl;
+        }
         int start_edge = graphAt(graph, &scope, 4, node); // establish the edge range: start
         int end_edge;
         if (node == num_nodes - 1) {
@@ -208,12 +216,16 @@ public:
               frontier->at_mut(scope, newCount) = temp;
             }
             frontier->pop_back(scope);              // and delete it
-            //std::cout << "Linked to node " << outgoing << std::endl;
+            if (DO_PRINT) {
+              std::cout << "Linked to node " << outgoing << std::endl;
+            }
             break;
           }
         }
       }
-      //std::cout << "------" << std::endl;
+      if (DO_PRINT) {
+        std::cout << "------" << std::endl;
+      }
       if (newCount == count) {
         //std::cout << "This graph is not connected. ERROR." << std::endl;
         break;
