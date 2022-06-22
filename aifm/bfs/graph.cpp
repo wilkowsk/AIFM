@@ -238,15 +238,27 @@ void load_graph_binary(const char* filename, graph* graph) {
 
     graph->outgoing_starts = (int*)malloc(sizeof(int) * graph->num_nodes); // graph->outgoing_starts = manager->allocate_array<int, graph->num_nodes>();
     graph->outgoing_edges = (int*)malloc(sizeof(int) * graph->num_edges); // graph->outgoing_edges = manager->allocate_array<int, graph->num_edges>();
-
+/*
     if (fread(graph->outgoing_starts, sizeof(int), graph->num_nodes, input) != graph->num_nodes) { // replace, somehow
         fprintf(stderr, "Error reading nodes.\n");
         exit(1);
     }
-
+*/
+    for (int i = 0; i < graph->num_nodes; i++) {
+      int temp[1];
+      fread(temp, sizeof(int), 1, input);   // instead of doing it all at once, do it -one at a time- so we can use our data structure.
+      graph->outgoing_starts[i] = temp[0];  // replace with our data structure when porting.
+    }
+/*
     if (fread(graph->outgoing_edges, sizeof(int), graph->num_edges, input) != graph->num_edges) { // replace, somehow
         fprintf(stderr, "Error reading edges.\n");
         exit(1);
+    }
+    */
+    for (int i = 0; i < graph->num_edges; i++) {
+      int temp[1];
+      fread(temp, sizeof(int), 1, input);   // instead of doing it all at once, do it -one at a time- so we can use our data structure.
+      graph->outgoing_edges[i] = temp[0];  // replace with our data structure when porting.
     }
 
     fclose(input);
