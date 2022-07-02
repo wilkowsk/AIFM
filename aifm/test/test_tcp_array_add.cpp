@@ -36,7 +36,10 @@ constexpr uint32_t kNumGCThreads = 12;
 constexpr uint64_t kNumElements = 10000;
 
 #define ROOT_NODE_ID 0
-#define DO_PRINT true
+#define DO_PRINT false
+
+#include <chrono>
+using namespace std::chrono;
 
 namespace far_memory {
 
@@ -49,15 +52,15 @@ public:
   int y) {
     // return (x+(6*y));
     int loc = 0;                              // initialize loc to 0
-    int num_nodes = graph->at_mut(*scope, 1); // num_nodes is at (1,0)
-    int num_edges = graph->at_mut(*scope, 0); // num_edges is at (0,0)
+    int numNodes = graph->at_mut(*scope, 1); // numNodes is at (1,0)
+    int numEdges = graph->at_mut(*scope, 0); // numEdges is at (0,0)
     switch(x) {
       case 5:
-        loc += num_nodes;   // total: loc = (2*num_nodes) + num_edges + 2
+        loc += numNodes;   // total: loc = (2*numNodes) + numEdges + 2
       case 4:
-        loc += num_edges;   // total: loc = num_nodes + num_edges + 2
+        loc += numEdges;   // total: loc = numNodes + numEdges + 2
       case 3:
-        loc += num_nodes;   // total: loc = num_nodes + 2
+        loc += numNodes;   // total: loc = numNodes + 2
       case 2:
         loc++;              // total: loc = 2;
       case 1:
@@ -89,59 +92,36 @@ public:
     graph->at_mut(*scope, graphLoc(graph, scope, x, y)) = target; // set the element at (x,y) to target
   }
 
-  void top_down_sort(
+  int top_down_step(
   FarMemManager *manager,
   DataFrameVector<int>* distances,
-  DataFrameVector<int>* graph) {
-    DerefScope scope;
+  DataFrameVector<int>* graph,
+  DataFrameVector<int>* frontier,
+  int* count,
+  DataFrameVector<int>* newFrontier,
+  DerefScope* scope) {
+    int numEdges = graphAt(graph, scope, 0, 0);   // numEdges is at (0,0)
+    int numNodes = graphAt(graph, scope, 1, 0);   // numNodes is at (1,0)
 
-    int num_edges = graphAt(graph, &scope, 0, 0);   // num_edges is at (0,0)
-    int num_nodes = graphAt(graph, &scope, 1, 0);   // num_nodes is at (1,0)
-    
-    for (int i = 0; i < num_nodes; i++) { // initialise the distances of each node...
-      if (i == ROOT_NODE_ID) {
-        distances->push_back(scope, 0);   // to 0 on the root node...
-      } else {
-        distances->push_back(scope, -1);  // and sentinel -1 on all else.
-      }
-    }
+    int traversedEdges = 0;
 
-    int count = 1;    // the number of nodes on the previous layer.
-    int newCount = 0; // the number of nodes on this layer.
-
-    auto vertex_set = manager->allocate_dataframe_vector<int>();
-      auto frontier = &vertex_set;                  // make a frontier of the last layer of nodes...
-      frontier->push_back(scope, ROOT_NODE_ID);     // currently containing only the root
-      
-    auto vertex_set2 = manager->allocate_dataframe_vector<int>();
-    auto new_frontier = &vertex_set2;               // make a frontier of the current layer of nodes
-                                                    // this will remain empty for now.
-
-    if (DO_PRINT) {
-      std::cout << std::endl;
-    }
-    while (count != 0) {  // while there are still nodes to sort through...
-      newCount = 0;           // we're working on a new layer, so it's empty for now
-      new_frontier->clear();  // therefore, clear the new frontier
+      int newCount = 0;           // we're working on a new layer, so it's empty for now
+      newFrontier->clear();  // therefore, clear the new frontier
       {
-        for (int i = 0; i < count; i++) {           // for each node in the frontier:
-          int node = frontier->at(scope, i);          // establish the node
+        for (int i = 0; i < *count; i++) {           // for each node in the frontier:
+          int node = frontier->at(*scope, i);          // establish the node
           if (DO_PRINT) {
             std::cout << "Working on node " << node << std::endl;
           }
-          int start_edge = graphAt(graph, &scope, 2, node); // establish the edge range: start
-          int end_edge;
-          if (node == num_nodes - 1) {
-            end_edge = num_edges;
-          } else {
-            end_edge = graphAt(graph, &scope, 2, node + 1); // establish the edge range: end
-          }
-          for (int neighbor = start_edge; neighbor < end_edge; neighbor++) { // for each edge:
-            int outgoing = graphAt(graph, &scope, 3, neighbor);               // establish the neighboring nodes
-            if (distances->at(scope, outgoing) == -1) {                       // when the node hasn't been visited yet,
-              distances->at_mut(scope, outgoing) = distances->at(scope, node) + 1;  // write its distance
+          int startEdge = graphAt(graph, scope, 2, node); // establish the edge range: start
+          int endEdge = (node == numNodes - 1) ? numEdges : graphAt(graph, scope, 2, node + 1);
+          for (int neighbor = startEdge; neighbor < endEdge; neighbor++) { // for each edge:
+            int outgoing = graphAt(graph, scope, 3, neighbor);               // establish the neighboring nodes
+            traversedEdges++;
+            if (distances->at(*scope, outgoing) == -1) {                       // when the node hasn't been visited yet,
+              distances->at_mut(*scope, outgoing) = distances->at(*scope, node) + 1;  // write its distance
               newCount++;                                                           // increment the new count
-              new_frontier->push_back(scope, outgoing);                             // add the node to the new frontier
+              newFrontier->push_back(*scope, outgoing);                             // add the node to the new frontier
               if (DO_PRINT) {
                 std::cout << "Linked node " << outgoing << std::endl;
               }
@@ -152,70 +132,99 @@ public:
       if (DO_PRINT) {
         std::cout << "------" << std::endl;
       }
-      {
-        auto temp = frontier;       // swap the frontiers -- we're moving to the next layer now
-        frontier = new_frontier;
-        new_frontier = temp;
-      }
-      count = newCount;  // the counts are swapped as well, for the same reason.
-    }
+      *count = newCount;  // the counts are swapped as well, for the same reason.
+      return traversedEdges;
   }
 
-  void bottom_up_sort(
+  void top_down_sort(
   FarMemManager *manager,
   DataFrameVector<int>* distances,
   DataFrameVector<int>* graph) {
+    auto start = high_resolution_clock::now();
     DerefScope scope;
 
-    int num_edges = graphAt(graph, &scope, 0, 0);   // num_edges is at (0,0)
-    int num_nodes = graphAt(graph, &scope, 1, 0);   // num_nodes is at (1,0)
+    int numEdges = graphAt(graph, &scope, 0, 0);   // numEdges is at (0,0)
+    int numNodes = graphAt(graph, &scope, 1, 0);   // numNodes is at (1,0)
 
-    for (int i = 0; i < num_nodes; i++) {           // initialise the distances of each node...
+    int traversedEdges = 0;
+    
+    for (int i = 0; i < numNodes; i++) { // initialise the distances of each node...
       if (i == ROOT_NODE_ID) {
-        distances->push_back(scope, 0);             // to 0 for the root node...
+        distances->push_back(scope, 0);   // to 0 on the root node...
       } else {
-        distances->push_back(scope, -1);            // and sentinel -1 for all else
-      }
-    }
-    auto vertex_set = manager->allocate_dataframe_vector<int>();
-    auto frontier = &vertex_set;                    // make a frontier of the unvisited nodes
-                                                    // we'll be initialising this later
-
-    int count = num_nodes - 1;    // the number of unvisited nodes (updated after each iteration)
-    int newCount = count;         // the number of unvisited nodes (updated more frequently)
-    int iterator = 0;             // the iteration count.
-
-    for (int i = 0; i < num_nodes; i++) {
-      if (i != ROOT_NODE_ID) {                      // except for the root...
-        frontier->push_back(scope, i);              // put every node into the "unvisited" frontier
+        distances->push_back(scope, -1);  // and sentinel -1 on all else.
       }
     }
 
+    int count = 1;    // the number of nodes on the previous layer.
+    int newCount = 0; // the number of nodes on this layer.
+
+    auto vertexSet = manager->allocate_dataframe_vector<int>();
+      auto frontier = &vertexSet;                  // make a frontier of the last layer of nodes...
+      frontier->push_back(scope, ROOT_NODE_ID);     // currently containing only the root
+      
+    auto vertexSet2 = manager->allocate_dataframe_vector<int>();
+    auto newFrontier = &vertexSet2;               // make a frontier of the current layer of nodes
+                                                    // this will remain empty for now.
+
+    if (DO_PRINT) {
+      std::cout << std::endl;
+    }
     while (count != 0) {  // while there are still nodes to sort through...
-      newCount = count;                           // TODO: test whether this line is unnecessary.
-      for (int i = count - 1; i >= 0; i--) {      // for each node...
-        int node = frontier->at(scope, i);          // establish the node
+      traversedEdges += top_down_step(manager, distances, graph, frontier, &count, newFrontier, &scope);
+      {
+        auto temp = frontier;       // swap the frontiers -- we're moving to the next layer now
+        frontier = newFrontier;
+        newFrontier = temp;
+      }
+    }
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<nanoseconds>(stop - start);
+    std::cout << "{{{{ Top-down traversal. }}}}" << std::endl;
+    std::cout << "{{{{ " << duration.count() << " ns }}}}" << std::endl;
+    std::cout << "{{{{ " << traversedEdges << " edges }}}}" << std::endl;
+    std::cout << "{{{{ " << (traversedEdges * 1.0) / duration.count() << " gteps }}}}" << std::endl;
+  }
+
+  int bottom_up_step(
+  FarMemManager *manager,
+  DataFrameVector<int>* distances,
+  DataFrameVector<int>* graph,
+  int offset,
+  DataFrameVector<int>* frontier,
+  int* count,
+  int* iterator,
+  DerefScope* scope) {
+    int numEdges = graphAt(graph, scope, 0, 0);   // numEdges is at (0,0)
+    int numNodes = graphAt(graph, scope, 1, 0);   // numNodes is at (1,0)
+
+    int traversedEdges = 0;
+
+      int newCount = *count;                           // TODO: test whether this line is unnecessary.
+      for (int i = *count - 1; i >= 0; i--) {      // for each node...
+        int node = frontier->at(*scope, i);          // establish the node
         if (DO_PRINT) {
           std::cout << "Working on node " << node << std::endl;
         }
-        int start_edge = graphAt(graph, &scope, 4, node); // establish the edge range: start
-        int end_edge;
-        if (node == num_nodes - 1) {
-          end_edge = num_edges;
+        int startEdge = graphAt(graph, scope, 4, node); // establish the edge range: start
+        int endEdge;
+        if (node == numNodes - 1) {
+          endEdge = numEdges;
         } else {
-          end_edge = graphAt(graph, &scope, 4, node + 1); // establish the edge range: end
+          endEdge = graphAt(graph, scope, 4, node + 1); // establish the edge range: end
         }
-        for (int neighbor = start_edge; neighbor < end_edge; neighbor++) { // for each edge:
-          int outgoing = graphAt(graph, &scope, 5, neighbor); // establish the neighboring nodes
-          if (distances->at(scope, outgoing) == iterator) {  // when the node is on the frontier,
-            distances->at_mut(scope, node) = iterator + 1;      // write its distance
+        for (int neighbor = startEdge; neighbor < endEdge; neighbor++) { // for each edge:
+          int outgoing = graphAt(graph, scope, 5, neighbor); // establish the neighboring nodes
+          traversedEdges++;
+          if (distances->at(*scope, outgoing) == *iterator) {  // when the node is on the frontier,
+            distances->at_mut(*scope, node) = *iterator + 1;      // write its distance
             newCount--;                                         // decrement the new count
             {
-              auto temp = frontier->at(scope, i);   // move the node to the end of the list
-              frontier->at_mut(scope, i) = frontier->at(scope, newCount);
-              frontier->at_mut(scope, newCount) = temp;
+              //auto temp = frontier->at(*scope, i);   // move the node to the end of the list
+              frontier->at_mut(*scope, i) = frontier->at(*scope, newCount); // todo: make this more efficient
+              //frontier->at_mut(*scope, newCount) = temp;
             }
-            frontier->pop_back(scope);              // and delete it
+            frontier->pop_back(*scope);              // and delete it
             if (DO_PRINT) {
               std::cout << "Linked to node " << outgoing << std::endl;
             }
@@ -226,16 +235,189 @@ public:
       if (DO_PRINT) {
         std::cout << "------" << std::endl;
       }
-      if (newCount == count) {
+      if (newCount == *count) {
         //std::cout << "This graph is not connected. ERROR." << std::endl;
-        break;
+        //break;
+        *count = 0;
+      } else {
+        *count = newCount; // update the count
       }
-      count = newCount; // update the count
+      return traversedEdges;
+  }
+
+  void bottom_up_sort(
+  FarMemManager *manager,
+  DataFrameVector<int>* distances,
+  DataFrameVector<int>* graph) {
+    auto start = high_resolution_clock::now();
+    DerefScope scope;
+
+    int numEdges = graphAt(graph, &scope, 0, 0);   // numEdges is at (0,0)
+    int numNodes = graphAt(graph, &scope, 1, 0);   // numNodes is at (1,0)
+
+    int traversedEdges = 0;
+
+    for (int i = 0; i < numNodes; i++) {           // initialise the distances of each node...
+      if (i == ROOT_NODE_ID) {
+        distances->push_back(scope, 0);             // to 0 for the root node...
+      } else {
+        distances->push_back(scope, -1);            // and sentinel -1 for all else
+      }
+    }
+    auto vertexSet = manager->allocate_dataframe_vector<int>();
+    auto frontier = &vertexSet;                    // make a frontier of the unvisited nodes
+                                                    // we'll be initialising this later
+
+    int count = numNodes - 1;    // the number of unvisited nodes (updated after each iteration)
+    int newCount = count;         // the number of unvisited nodes (updated more frequently)
+    int iterator = 0;             // the iteration count.
+
+    for (int i = 0; i < numNodes; i++) {
+      if (i != ROOT_NODE_ID) {                      // except for the root...
+        frontier->push_back(scope, i);              // put every node into the "unvisited" frontier
+      }
+    }
+
+    while (count != 0) {  // while there are still nodes to sort through...
+      traversedEdges += bottom_up_step(manager, distances, graph, 0, frontier, &count, &iterator, &scope);
       iterator++;       // and the iterator
     }
     
-    auto vertex_set2 = manager->allocate_dataframe_vector<int>(); // TODO: are these unnecessary?
-    auto new_frontier = &vertex_set2;
+    auto vertexSet2 = manager->allocate_dataframe_vector<int>(); // TODO: are these unnecessary?
+    auto newFrontier = &vertexSet2;
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<nanoseconds>(stop - start);
+    std::cout << "{{{{ Bottom-up traversal. }}}}" << std::endl;
+    std::cout << "{{{{ " << duration.count() << " ns }}}}" << std::endl;
+    std::cout << "{{{{ " << traversedEdges << " edges }}}}" << std::endl;
+    std::cout << "{{{{ " << (traversedEdges * 1.0) / duration.count() << " gteps }}}}" << std::endl;
+    return;
+  }
+
+  int hybrid_step(
+  FarMemManager *manager,
+  DataFrameVector<int>* distances,
+  DataFrameVector<int>* graph,
+  int offset,
+  DataFrameVector<int>* frontier,
+  int* count,
+  DataFrameVector<int>* newFrontier,
+  DerefScope* scope) {
+    int numEdges = graphAt(graph, scope, 0, 0);   // numEdges is at (0,0)
+    int numNodes = graphAt(graph, scope, 1, 0);   // numNodes is at (1,0)
+
+    int traversedEdges = 0;
+
+      int newCount = 0;           // we're working on a new layer, so it's empty for now
+      newFrontier->clear();  // therefore, clear the new frontier
+      {
+        for (int i = 0; i < *count; i++) {           // for each node in the frontier:
+          int node = frontier->at(*scope, i);          // establish the node
+          if (DO_PRINT) {
+            std::cout << "Working on node " << node << std::endl;
+          }
+          int startEdge = graphAt(graph, scope, 2, node); // establish the edge range: start
+          int endEdge = (node == numNodes - 1) ? numEdges : graphAt(graph, scope, 2, node + 1);
+          for (int neighbor = startEdge; neighbor < endEdge; neighbor++) { // for each edge:
+            int outgoing = graphAt(graph, scope, 3, neighbor);               // establish the neighboring nodes
+            traversedEdges++;
+            if (distances->at(*scope, outgoing) == -1) {                       // when the node hasn't been visited yet,
+              distances->at_mut(*scope, outgoing) = distances->at(*scope, node) + 1;  // write its distance
+              newCount++;                                                           // increment the new count
+              newFrontier->push_back(*scope, outgoing);                             // add the node to the new frontier
+              if (DO_PRINT) {
+                std::cout << "Linked node " << outgoing << std::endl;
+              }
+            }
+          }
+        }
+      }
+      if (DO_PRINT) {
+        std::cout << "------" << std::endl;
+      }
+      *count = newCount;  // the counts are swapped as well, for the same reason.
+      return traversedEdges;
+  }
+
+  void hybrid_sort (
+  FarMemManager *manager,
+  DataFrameVector<int>* distances,
+  DataFrameVector<int>* graph) {
+    auto start = high_resolution_clock::now();
+    DerefScope scope;
+
+    int numEdges = graphAt(graph, &scope, 0, 0);   // numEdges is at (0,0)
+    int numNodes = graphAt(graph, &scope, 1, 0);   // numNodes is at (1,0)
+
+    int traversedEdges = 0;
+
+    for (int i = 0; i < numNodes; i++) {           // initialise the distances of each node...
+      if (i == ROOT_NODE_ID) {
+        distances->push_back(scope, 0);             // to 0 for the root node...
+      } else {
+        distances->push_back(scope, -1);            // and sentinel -1 for all else
+      }
+    }
+    auto bottomVertexSet = manager->allocate_dataframe_vector<int>();
+    auto bottomFrontier = &bottomVertexSet;                    // make a frontier of the unvisited nodes
+                                                    // we'll be initialising this later
+
+    int bottomCount = 0;    // the number of unvisited nodes (updated after each iteration)
+    int bottomNewCount = bottomCount;         // the number of unvisited nodes (updated more frequently)
+    int iterator = 0;             // the iteration count.
+
+    for (int i = 0; i < numNodes; i++) {
+      if (i != ROOT_NODE_ID) {                      // except for the root...
+                      // put every node into the "unvisited" frontier
+      }
+    }
+
+    int count = 1;    // the number of nodes on the previous layer.
+    int newCount = 0; // the number of nodes on this layer.
+
+    auto vertexSet = manager->allocate_dataframe_vector<int>();
+      auto frontier = &vertexSet;                  // make a frontier of the last layer of nodes...
+      frontier->push_back(scope, ROOT_NODE_ID);     // currently containing only the root
+      
+    auto vertexSet2 = manager->allocate_dataframe_vector<int>();
+    auto newFrontier = &vertexSet2;               // make a frontier of the current layer of nodes
+                                                    // this will remain empty for now.
+
+    int visitedNodes = 1;
+    bool bottomActivated = false;
+    while (visitedNodes < numNodes) {
+      //std::cout << "Level " << iterator << " forthcoming. Current nodes: " << visitedNodes << std::endl;
+      if (visitedNodes < ((numNodes * 1.0) * numNodes / numEdges)) {
+        //std::cout << "Top-down." << std::endl;
+        traversedEdges += top_down_step(manager, distances, graph, frontier, &count, newFrontier, &scope);
+        visitedNodes += count;
+        {
+          auto temp = frontier;       // swap the frontiers -- we're moving to the next layer now
+          frontier = newFrontier;
+          newFrontier = temp;
+        }
+      } else {
+        //std::cout << "Bottom-up." << std::endl;
+        if (bottomActivated == false) {
+          bottomActivated = true;
+          for (int i = 0; i < numNodes; i++) {
+            if (distances->at_mut(scope, i) == -1) {
+              bottomFrontier->push_back(scope, i);
+              bottomCount++;
+            }
+          }
+        }
+        traversedEdges += bottom_up_step(manager, distances, graph, 0, bottomFrontier, &bottomCount, &iterator, &scope);
+        visitedNodes = numNodes - bottomCount;
+      }
+      iterator++;
+    }
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<nanoseconds>(stop - start);
+    std::cout << "{{{{ Hybrid traversal. }}}}" << std::endl;
+    std::cout << "{{{{ " << duration.count() << " ns }}}}" << std::endl;
+    std::cout << "{{{{ " << traversedEdges << " edges }}}}" << std::endl;
+    std::cout << "{{{{ " << (traversedEdges * 1.0) / duration.count() << " gteps }}}}" << std::endl;
     return;
   }
 
@@ -245,21 +427,22 @@ public:
     auto graph = manager->allocate_dataframe_vector<int>();       // allocate our vectors
     auto distances = manager->allocate_dataframe_vector<int>();
     auto distances2 = manager->allocate_dataframe_vector<int>();
+    auto distances3 = manager->allocate_dataframe_vector<int>();
     auto usedNumbers = manager->allocate_dataframe_vector<int>();
-    int num_edges;                                                // don't forget our ints, allocate them too!
-    int num_nodes;
-
+    int numEdges;                                                 // don't forget our ints, allocate them too!
+    int numNodes;
+/*
     { // input subsection.
       unsigned int inputVar;
-      int phase_i = 0;  // main phases
-      int phase_j = 0;  // subphases
+      int phaseI = 0;     // main phases
+      int phaseJ = 0;     // subphases
       int inputNodes = 0; // # nodes
       int inputEdges = 0; // # edges
       DerefScope scope;
       while (inputVar != -2) {
-        switch (phase_i) {
+        switch (phaseI) {
           case 0: // constants
-            switch (phase_j) {
+            switch (phaseJ) {
               case 0: // graph header token
                 std::cout << "Recite the magic value" << std::endl; // to mimick the graph header token
                 std::cout << 0xDEADBEEF << std::endl; // this converts to a decimal number in cout.
@@ -275,37 +458,37 @@ public:
             }
             break;
           case 1: // edge offsets, for each node
-            std::cout << "Enter node #" << phase_j << std::endl;
+            std::cout << "Enter node #" << phaseJ << std::endl;
             break;
           case 2: // edge destinations, for each edge
-            std::cout << "Enter edge #" << phase_j << std::endl;
+            std::cout << "Enter edge #" << phaseJ << std::endl;
             break;
           default: // it should never get here.
             std::cout << "ERROR" << std::endl;
         }
         std::cin >> inputVar; // input. replace with file reading on port.
-        switch (phase_i) {
+        switch (phaseI) {
           case 0: // constants
-            switch (phase_j) {
+            switch (phaseJ) {
               case 0: // graph header token
                 if (inputVar != 0xDEADBEEF) { // match the magic value...
                   std::cout << "ERROR" << std::endl; // or else you'll get an error
                 }
-                phase_j++; // there's another subphase...
+                phaseJ++; // there's another subphase...
                 break;
               case 1: // number of nodes
                 inputNodes = inputVar;          // we've inputted the number of nodes.
                 for (int k = 0; k < 2; k++) {
                   graph.push_back(scope, -1);   // expand the vector to accomodate the new constants
                 }
-                graphSet(&graph, &scope, 1, 0, inputNodes); // num_nodes is at (1,0), set it to inputNodes
-                phase_j++; // there's another subphase...
+                graphSet(&graph, &scope, 1, 0, inputNodes); // numNodes is at (1,0), set it to inputNodes
+                phaseJ++; // there's another subphase...
                 break;
               case 2: // number of edges
                 inputEdges = inputVar;          // we've inputted the number of edges.
-                graphSet(&graph, &scope, 0, 0, inputEdges); // num_edges is at (0,0), set it to inputEdges
-                phase_i++;   // move to phase 1, 
-                phase_j = 0;         // subphase 0.
+                graphSet(&graph, &scope, 0, 0, inputEdges); // numEdges is at (0,0), set it to inputEdges
+                phaseI++;   // move to phase 1, 
+                phaseJ = 0;         // subphase 0.
                 break;
               default: // it should never get here.
                 std::cout << "ERROR" << std::endl;
@@ -317,20 +500,20 @@ public:
             for (int k = 0; k < 2; k++) {
               graph.push_back(scope, -1);   // expand the vector to accomodate the new node
             }
-            graphSet(&graph, &scope, 2, phase_j, inputVar); // put the node offset into the vector
-            phase_j++; // there's another subphase...
-            if (phase_j >= inputNodes) { // unless there isn't...
-              phase_i = 2;  // then, move to phase 2...
-              phase_j = 0;                // subphase 0.
+            graphSet(&graph, &scope, 2, phaseJ, inputVar); // put the node offset into the vector
+            phaseJ++; // there's another subphase...
+            if (phaseJ >= inputNodes) { // unless there isn't...
+              phaseI = 2;  // then, move to phase 2...
+              phaseJ = 0;                // subphase 0.
             }
             break;
           case 2: // edge offsets, for each edge
             for (int k = 0; k < 2; k++) {
               graph.push_back(scope, -1);   // expand the vector to accomodate the new edge
             }
-            graphSet(&graph, &scope, 3, phase_j, inputVar); // put the edge destination into the vector.
-            phase_j++; // there's another subphase...
-            if (phase_j >= inputEdges) { // unless there isn't...
+            graphSet(&graph, &scope, 3, phaseJ, inputVar); // put the edge destination into the vector.
+            phaseJ++; // there's another subphase...
+            if (phaseJ >= inputEdges) { // unless there isn't...
               inputVar = -2; // then exit the loop.
             }
             break;
@@ -342,7 +525,7 @@ public:
         }
       }
     }
-    
+    */
     for (int repeats = 0; repeats < 1; repeats++) { // for testing purposes. set to repeats<1 for normal use.
       {
         DerefScope scope;
@@ -350,8 +533,9 @@ public:
         //graph.clear();          // clear the vectors from the previous iteration
         distances.clear();
         distances2.clear();
+        distances3.clear();
         usedNumbers.clear();
-        int arraySize = 10000000; // establish the size of the array
+        int arraySize = 500000; // establish the size of the array
         std::random_device rd;  // set up the RNG
         std::mt19937_64 eng(rd());
         std::uniform_int_distribution<uint64_t> distr(0, arraySize - 1); // an edge has only a small chance to be present.
@@ -361,15 +545,15 @@ public:
           //for (int i = 0; i < arraySize; i++) {
           //  edges[i][i] = 0;
           //  for (int j = 0; j < arraySize; j++) { // for each distinct pair of nodes:
-          //    int random_num = distr(eng);
-          //    if (random_num != 1 || j == i) {
-          //      random_num = 0;           // if the random num wasn't 1, set it to 0.
+          //    int randomNum = distr(eng);
+          //    if (randomNum != 1 || j == i) {
+          //      randomNum = 0;           // if the random num wasn't 1, set it to 0.
           //    }
           //    if (j == i + 1) {
-          //      random_num = 1;           // if the two nodes are consecutive, add the edge anyway.
+          //      randomNum = 1;           // if the two nodes are consecutive, add the edge anyway.
           //    }
-          //    edges[i][j] = random_num;
-          //    // edges[j][i] = random_num;
+          //    edges[i][j] = randomNum;
+          //    // edges[j][i] = randomNum;
           //  }
           //}
 
@@ -399,7 +583,7 @@ public:
           //  }
           //}
         }
-/*
+
         { // graphgen 
           int runningOffset = 0;  // keep track of how many edges we've gone through so far
           int outDegree = 4;
@@ -422,27 +606,27 @@ public:
             }
             int currentOutDegree = 1;
             while (currentOutDegree < outDegree) {  // while we still haven't gotten all edges...
-              int random_num = distr(eng);                    // select a random node
+              int randomNum = distr(eng);                     // select a random node
               bool isUnique = true;
               for (int j = 0; j < currentOutDegree; j++) {
-                if (usedNumbers.at(scope, j) == random_num) {
+                if (usedNumbers.at(scope, j) == randomNum) {
                   isUnique = false;                           // try again if the edge there already exists
                 }
               }
-              if (isUnique && random_num != i) {              // if the edge isn't redundant...
-                usedNumbers.push_back(scope, random_num);       // add it
-                currentOutDegree++;                             // count it
+              if (isUnique && randomNum != i) {             // if the edge isn't redundant...
+                usedNumbers.push_back(scope, randomNum);      // add it
+                currentOutDegree++;                           // count it
               }
             }
             for (int j = 0; j < outDegree; j++) {   // for each edge from this node...
-              //int random_num = distr(eng);
-              //if (random_num != 1 || j == i) {
-              //  random_num = 0;           // if the random num wasn't 1, set it to 0.
+              //int randomNum = distr(eng);
+              //if (randomNum != 1 || j == i) {
+              //  randomNum = 0;           // if the random num wasn't 1, set it to 0.
               //}
               //if (j == i + 1) {
-              //  random_num = 1;           // if the two nodes are consecutive, add the edge anyway.
+              //  randomNum = 1;           // if the two nodes are consecutive, add the edge anyway.
               //}
-              //if (random_num == 1) {
+              //if (randomNum == 1) {
               //  if (DO_PRINT) {
               //    std::cout << " " << j;
               //  }
@@ -465,7 +649,7 @@ public:
             usedNumbers.clear();
           }
         }
-*/
+
         { // - 
           //runningOffset = 0;
           //for (int i = 0; i < arraySize; i++) {
@@ -512,77 +696,77 @@ public:
           //graph.at_mut(scope, 0).push_back(scope, runningOffset);
         }
 
-        num_edges = graphAt(&graph, &scope, 0, 0);  // num_edges at 0,0
-        num_nodes = graphAt(&graph, &scope, 1, 0);  // num_nodes at 1,0
+        numEdges = graphAt(&graph, &scope, 0, 0);  // numEdges at 0,0
+        numNodes = graphAt(&graph, &scope, 1, 0);  // numNodes at 1,0
 
         { // for incoming edges
-          auto node_counts = manager->allocate_dataframe_vector<int>();   // for the indegree of each node
-          auto node_scatter = manager->allocate_dataframe_vector<int>();  // to adjust the offset of each node
-          for (int i = 0; i < num_nodes; i++) {   // at each node...
-            node_scatter.push_back(scope, 0);       // prefill the scatter and counts to 0
-            node_counts.push_back(scope, 0);
+          auto nodeCounts = manager->allocate_dataframe_vector<int>();   // for the indegree of each node
+          auto nodeScatter = manager->allocate_dataframe_vector<int>();  // to adjust the offset of each node
+          for (int i = 0; i < numNodes; i++) {   // at each node...
+            nodeScatter.push_back(scope, 0);       // prefill the scatter and counts to 0
+            nodeCounts.push_back(scope, 0);
           }
-          for (int i = 0; i < num_nodes; i++) {   // for each node...
-            int start_edge;
+          for (int i = 0; i < numNodes; i++) {   // for each node...
+            int startEdge;
             {
-              start_edge = graphAt(&graph, &scope, 2, i);
+              startEdge = graphAt(&graph, &scope, 2, i);
               // establish the edge range: start
             }
-            int end_edge;
-            if (i == num_nodes - 1) {
-              end_edge = num_edges;
+            int endEdge;
+            if (i == numNodes - 1) {
+              endEdge = numEdges;
             } else {
-              end_edge = graphAt(&graph, &scope, 2, i + 1);
+              endEdge = graphAt(&graph, &scope, 2, i + 1);
               // establish the edge range: end
             }
-            for (int j = start_edge; j < end_edge; j++) {
-              int target_node;
+            for (int j = startEdge; j < endEdge; j++) {
+              int targetNode;
               {
-                target_node = graphAt(&graph, &scope, 3, j);
+                targetNode = graphAt(&graph, &scope, 3, j);
                 // establish the neighboring nodes
               }
-              node_counts.at_mut(scope, target_node)++; // update the indegree of the target node
+              nodeCounts.at_mut(scope, targetNode)++; // update the indegree of the target node
             }
           }
           graphSet(&graph, &scope, 4, 0, 0);    // the zeroth node has offset zero
-          for (int i = 1; i < num_nodes; i++) { // for each other node...
-            graphSet(&graph, &scope, 4, i, graphAt(&graph, &scope, 4, i - 1) + node_counts.at_mut(scope, i - 1));
-            // graph[4].push_back(scope, graph[4].at(scope, i - 1) + node_counts.at(scope, i - 1));
+          for (int i = 1; i < numNodes; i++) { // for each other node...
+            graphSet(&graph, &scope, 4, i, graphAt(&graph, &scope, 4, i - 1) + nodeCounts.at_mut(scope, i - 1));
+            // graph[4].push_back(scope, graph[4].at(scope, i - 1) + nodeCounts.at(scope, i - 1));
             // the offset is the sum of the previous offset and the indegree of the previous node
           }
-          for (int i = 0; i < num_nodes; i++) { // for each node...
-            int start_edge;
+          for (int i = 0; i < numNodes; i++) { // for each node...
+            int startEdge;
             {
-              start_edge = graphAt(&graph, &scope, 2, i);
+              startEdge = graphAt(&graph, &scope, 2, i);
               // establish the edge range: start
             }
-            int end_edge;
-            if (i == num_nodes - 1) {
-              end_edge = num_edges;
+            int endEdge;
+            if (i == numNodes - 1) {
+              endEdge = numEdges;
             } else {
-              end_edge = graphAt(&graph, &scope, 2, i + 1);
+              endEdge = graphAt(&graph, &scope, 2, i + 1);
               // establish the edge range: end
             }
-            for (int j = start_edge; j < end_edge; j++) {
-              int target_node;
+            for (int j = startEdge; j < endEdge; j++) {
+              int targetNode;
               {
-                target_node = graphAt(&graph, &scope, 3, j);
+                targetNode = graphAt(&graph, &scope, 3, j);
                 // establish the neighboring nodes
               }
-              int desiredElement = graphAt(&graph, &scope, 4, target_node);   // start with the offset for the target node
-              desiredElement += node_scatter.at_mut(scope, target_node);      // and add the scatter for the target node
+              int desiredElement = graphAt(&graph, &scope, 4, targetNode);   // start with the offset for the target node
+              desiredElement += nodeScatter.at_mut(scope, targetNode);      // and add the scatter for the target node
               graphSet(&graph, &scope, 5, desiredElement, i);                 // use that as an index to add the edge
-              node_scatter.at_mut(scope, target_node)++;                      // and increment the scatter, to not overwrite it
+              nodeScatter.at_mut(scope, targetNode)++;                      // and increment the scatter, to not overwrite it
             }
           }
         }
 
         { // graph print 
           if (DO_PRINT) {
-            for (int i = 0; i < num_nodes; i++) {
+            for (int i = 0; i < numNodes; i++) {
               int starting = graphAt(&graph, &scope, 2, i);
-              int ending = (i == num_nodes - 1) ? (num_edges) : (graphAt(&graph, &scope, 2, i + 1));  // TODO: use this syntax for other ending nodes
-              // int ending = (i == num_nodes - 1) ? (num_edges) : (graphAt(graph, scope, 2, i + 1));
+              int ending = (i == numNodes - 1) ? (numEdges) : (graphAt(&graph, &scope, 2, i + 1));  // TODO: use this syntax for other ending nodes
+              // int ending = (i == numNodes - 1) ? (numEdges) : (graphAt(graph, scope, 2, i + 1));
               std::cout << "Info ~ Node " << i << " [[ " << starting << " ]] is linked to nodes:";    // print debug info: node # and offset
               for (int j = starting; j < ending; j++) {
                 std::cout << " " << graphAt(&graph, &scope, 3, j);                                    // print debug info: list of neighbouring nodes
@@ -623,7 +807,7 @@ public:
 
 
 
-          //for (int i = 0; i < num_nodes; i++) {
+          //for (int i = 0; i < numNodes; i++) {
           //  std::cout << distances.at_mut(scope, i);
           //}
           //std::cout << std::endl;
@@ -631,21 +815,26 @@ public:
       }
         top_down_sort(manager, &distances, &graph);   // call each BFS algorithm
         bottom_up_sort(manager, &distances2, &graph);
+        hybrid_sort(manager, &distances3, &graph);
       { // compare 
         DerefScope scope;
         if (DO_PRINT) {
-          for (int i = 0; i < num_nodes; i++) {
+          for (int i = 0; i < numNodes; i++) {
             std::cout << distances.at_mut(scope, i);  // print debug info: topdown distances
           }
           std::cout << std::endl;
-          for (int i = 0; i < num_nodes; i++) {
+          for (int i = 0; i < numNodes; i++) {
             std::cout << distances2.at_mut(scope, i); // print debug info: bottomup distances
+          }
+          std::cout << std::endl;
+          for (int i = 0; i < numNodes; i++) {
+            std::cout << distances3.at_mut(scope, i); // print debug info: bottomup distances
           }
           std::cout << std::endl;
         }
         bool isOkay = true;
-        for (int i = 0; i < num_nodes; i++) {
-          if (distances.at_mut(scope, i) != distances2.at_mut(scope, i)) {
+        for (int i = 0; i < numNodes; i++) {
+          if (distances.at_mut(scope, i) != distances2.at_mut(scope, i) || distances2.at_mut(scope, i) != distances3.at_mut(scope, i)) {
             std::cout << "X"; // throw error if the distances don't agree
             isOkay = false;
             break;
