@@ -36,7 +36,7 @@ constexpr uint32_t kNumGCThreads = 12;
 constexpr uint64_t kNumElements = 10000;
 
 #define ROOT_NODE_ID 0
-#define DO_PRINT true
+#define DO_PRINT false
 
 #include <chrono>
 using namespace std::chrono;
@@ -49,11 +49,15 @@ public:
   DataFrameVector<int>* graph,
   DerefScope* scope,
   int x,
-  int y) {
+  int y,
+  int n,
+  int e) {
     // return (x+(6*y));
     int loc = 0;                              // initialize loc to 0
-    int numNodes = graph->at_mut(*scope, 1); // numNodes is at (1,0)
-    int numEdges = graph->at_mut(*scope, 0); // numEdges is at (0,0)
+    //int numNodes = graph->at_mut(*scope, 1); // numNodes is at (1,0)
+    //int numEdges = graph->at_mut(*scope, 0); // numEdges is at (0,0)
+    int numNodes = n;
+    int numEdges = e;
     switch(x) {
       case 5:
         loc += numNodes;   // total: loc = (2*numNodes) + numEdges + 2
@@ -78,8 +82,10 @@ public:
   DataFrameVector<int>* graph,
   DerefScope* scope,
   int x,
-  int y) {
-    int funcOutput = graph->at_mut(*scope, graphLoc(graph, scope, x, y)); // return the element at (x,y)
+  int y,
+  int n,
+  int e) {
+    int funcOutput = graph->at_mut(*scope, graphLoc(graph, scope, x, y, n, e)); // return the element at (x,y)
     return funcOutput;
   }
 
@@ -88,8 +94,22 @@ public:
   DerefScope* scope,
   int x,
   int y,
+  int n,
+  int e,
   int target) {
-    graph->at_mut(*scope, graphLoc(graph, scope, x, y)) = target; // set the element at (x,y) to target
+    graph->at_mut(*scope, graphLoc(graph, scope, x, y, n, e)) = target; // set the element at (x,y) to target
+  }
+
+  void gtepsDisplay(
+  std::chrono::time_point<std::chrono::_V2::system_clock, std::chrono::duration<long int, std::ratio<1, 1000000000> > > start,
+  std::chrono::time_point<std::chrono::_V2::system_clock, std::chrono::duration<long int, std::ratio<1, 1000000000> > > stop,
+  int traversedEdges,
+  const char* name) {
+    auto duration = duration_cast<nanoseconds>(stop - start);
+    std::cout << "{{{{ " << name << " traversal }}}}" << std::endl;
+    std::cout << "{{{{ " << duration.count() << " ns }}}}" << std::endl;
+    std::cout << "{{{{ " << traversedEdges << " edges }}}}" << std::endl;
+    std::cout << "{{{{ " << (traversedEdges * 1.0) / duration.count() << " gteps }}}}" << std::endl;
   }
 
   int top_down_step(
@@ -100,8 +120,8 @@ public:
   int* count,
   DataFrameVector<int>* newFrontier,
   DerefScope* scope) {
-    int numEdges = graphAt(graph, scope, 0, 0);   // numEdges is at (0,0)
-    int numNodes = graphAt(graph, scope, 1, 0);   // numNodes is at (1,0)
+    int numEdges = graph->at_mut(*scope, 0);   // numEdges is at (0,0)
+    int numNodes = graph->at_mut(*scope, 1);   // numNodes is at (1,0)
 
     int traversedEdges = 0;
 
@@ -113,10 +133,10 @@ public:
         if (DO_PRINT) {
           std::cout << "Working on node " << node << std::endl;
         }
-        int startEdge = graphAt(graph, scope, 2, node); // establish the edge range: start
-        int endEdge = (node == numNodes - 1) ? numEdges : graphAt(graph, scope, 2, node + 1);
+        int startEdge = graphAt(graph, scope, 2, node, numNodes, numEdges); // establish the edge range: start
+        int endEdge = (node == numNodes - 1) ? numEdges : graphAt(graph, scope, 2, node + 1, numNodes, numEdges);
         for (int neighbor = startEdge; neighbor < endEdge; neighbor++) { // for each edge:
-          int outgoing = graphAt(graph, scope, 3, neighbor);               // establish the neighboring nodes
+          int outgoing = graphAt(graph, scope, 3, neighbor, numNodes, numEdges);               // establish the neighboring nodes
           traversedEdges++;
           if (distances->at(*scope, outgoing) == -1) {                       // when the node hasn't been visited yet,
             distances->at_mut(*scope, outgoing) = distances->at(*scope, node) + 1;  // write its distance
@@ -143,8 +163,8 @@ public:
     auto start = high_resolution_clock::now();
     DerefScope scope;
 
-    int numEdges = graphAt(graph, &scope, 0, 0);   // numEdges is at (0,0)
-    int numNodes = graphAt(graph, &scope, 1, 0);   // numNodes is at (1,0)
+    int numEdges = graph->at_mut(scope, 0);   // numEdges is at (0,0)
+    int numNodes = graph->at_mut(scope, 1);   // numNodes is at (1,0)
 
     int traversedEdges = 0;
     
@@ -179,11 +199,7 @@ public:
       }
     }
     auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<nanoseconds>(stop - start);
-    std::cout << "{{{{ Top-down traversal. }}}}" << std::endl;
-    std::cout << "{{{{ " << duration.count() << " ns }}}}" << std::endl;
-    std::cout << "{{{{ " << traversedEdges << " edges }}}}" << std::endl;
-    std::cout << "{{{{ " << (traversedEdges * 1.0) / duration.count() << " gteps }}}}" << std::endl;
+    gtepsDisplay(start, stop, traversedEdges, "Top-down");
   }
 
   int bottom_up_step(
@@ -195,8 +211,8 @@ public:
   int* count,
   int* iterator,
   DerefScope* scope) {
-    int numEdges = graphAt(graph, scope, 0, 0);   // numEdges is at (0,0)
-    int numNodes = graphAt(graph, scope, 1, 0);   // numNodes is at (1,0)
+    int numEdges = graph->at_mut(*scope, 0);   // numEdges is at (0,0)
+    int numNodes = graph->at_mut(*scope, 1);   // numNodes is at (1,0)
 
     int traversedEdges = 0;
 
@@ -206,10 +222,10 @@ public:
       if (DO_PRINT) {
         std::cout << "Working on node " << node << std::endl;
       }
-      int startEdge = graphAt(graph, scope, 4, node); // establish the edge range: start
-      int endEdge = (node == numNodes - 1) ? numEdges : graphAt(graph, scope, 4, node + 1);
+      int startEdge = graphAt(graph, scope, 4, node, numNodes, numEdges); // establish the edge range: start
+      int endEdge = (node == numNodes - 1) ? numEdges : graphAt(graph, scope, 4, node + 1, numNodes, numEdges);
       for (int neighbor = startEdge; neighbor < endEdge; neighbor++) { // for each edge:
-        int outgoing = graphAt(graph, scope, 5, neighbor); // establish the neighboring nodes
+        int outgoing = graphAt(graph, scope, 5, neighbor, numNodes, numEdges); // establish the neighboring nodes
         traversedEdges++;
         if (distances->at(*scope, outgoing) == *iterator) {  // when the node is on the frontier,
           distances->at_mut(*scope, node) = *iterator + 1;      // write its distance
@@ -247,8 +263,8 @@ public:
     auto start = high_resolution_clock::now();
     DerefScope scope;
 
-    int numEdges = graphAt(graph, &scope, 0, 0);   // numEdges is at (0,0)
-    int numNodes = graphAt(graph, &scope, 1, 0);   // numNodes is at (1,0)
+    int numEdges = graph->at_mut(scope, 0);   // numEdges is at (0,0)
+    int numNodes = graph->at_mut(scope, 1);   // numNodes is at (1,0)
 
     int traversedEdges = 0;
 
@@ -281,11 +297,7 @@ public:
     //auto vertexSet2 = manager->allocate_dataframe_vector<int>(); // TODO: are these unnecessary?
     //auto newFrontier = &vertexSet2;
     auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<nanoseconds>(stop - start);
-    std::cout << "{{{{ Bottom-up traversal. }}}}" << std::endl;
-    std::cout << "{{{{ " << duration.count() << " ns }}}}" << std::endl;
-    std::cout << "{{{{ " << traversedEdges << " edges }}}}" << std::endl;
-    std::cout << "{{{{ " << (traversedEdges * 1.0) / duration.count() << " gteps }}}}" << std::endl;
+    gtepsDisplay(start, stop, traversedEdges, "Bottom-up");
     return;
   }
 
@@ -297,8 +309,8 @@ public:
   DataFrameVector<int>* frontier,
   int* count,
   DerefScope* scope) {
-    int numEdges = graphAt(graph, scope, 0, 0);   // numEdges is at (0,0)
-    int numNodes = graphAt(graph, scope, 1, 0);   // numNodes is at (1,0)
+    int numEdges = graph->at_mut(*scope, 0);   // numEdges is at (0,0)
+    int numNodes = graph->at_mut(*scope, 1);   // numNodes is at (1,0)
 
     int traversedEdges = 0;
 
@@ -309,10 +321,10 @@ public:
         if (DO_PRINT) {
           std::cout << "Working on node " << node << std::endl;
         }
-        int startEdge = graphAt(graph, scope, 2, node); // establish the edge range: start
-        int endEdge = (node == numNodes - 1) ? numEdges : graphAt(graph, scope, 2, node + 1);
+        int startEdge = graphAt(graph, scope, 2, node, numNodes, numEdges); // establish the edge range: start
+        int endEdge = (node == numNodes - 1) ? numEdges : graphAt(graph, scope, 2, node + 1, numNodes, numEdges);
         for (int neighbor = startEdge; neighbor < endEdge; neighbor++) { // for each edge:
-          int outgoing = graphAt(graph, scope, 3, neighbor);               // establish the neighboring nodes
+          int outgoing = graphAt(graph, scope, 3, neighbor, numNodes, numEdges);               // establish the neighboring nodes
           traversedEdges++;
           if (distances->at(*scope, outgoing) == -1) {                       // when the node hasn't been visited yet,
             distances->at_mut(*scope, outgoing) = distances->at(*scope, node) + 1;  // write its distance
@@ -378,8 +390,8 @@ public:
     auto start = high_resolution_clock::now();
     DerefScope scope;
 
-    int numEdges = graphAt(graph, &scope, 0, 0);   // numEdges is at (0,0)
-    int numNodes = graphAt(graph, &scope, 1, 0);   // numNodes is at (1,0)
+    int numEdges = graph->at_mut(scope, 0);   // numEdges is at (0,0)
+    int numNodes = graph->at_mut(scope, 1);   // numNodes is at (1,0)
 
     int traversedEdges = 0;
 
@@ -455,11 +467,7 @@ public:
       iterator++;
     }
     auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<nanoseconds>(stop - start);
-    std::cout << "{{{{ Hybrid traversal. }}}}" << std::endl;
-    std::cout << "{{{{ " << duration.count() << " ns }}}}" << std::endl;
-    std::cout << "{{{{ " << traversedEdges << " edges }}}}" << std::endl;
-    std::cout << "{{{{ " << (traversedEdges * 1.0) / duration.count() << " gteps }}}}" << std::endl;
+    gtepsDisplay(start, stop, traversedEdges, "Hybrid");
     return;
   }
 
@@ -523,12 +531,12 @@ public:
                 for (int k = 0; k < 2; k++) {
                   graph.push_back(scope, -1);   // expand the vector to accomodate the new constants
                 }
-                graphSet(&graph, &scope, 1, 0, inputNodes); // numNodes is at (1,0), set it to inputNodes
+                graphSet(&graph, &scope, 1, 0, -1, -1, inputNodes); // numNodes is at (1,0), set it to inputNodes
                 phaseJ++; // there's another subphase...
                 break;
               case 2: // number of edges
                 inputEdges = inputVar;          // we've inputted the number of edges.
-                graphSet(&graph, &scope, 0, 0, inputEdges); // numEdges is at (0,0), set it to inputEdges
+                graphSet(&graph, &scope, 0, 0, -1, -1, inputEdges); // numEdges is at (0,0), set it to inputEdges
                 phaseI++;   // move to phase 1, 
                 phaseJ = 0;         // subphase 0.
                 break;
@@ -542,7 +550,7 @@ public:
             for (int k = 0; k < 2; k++) {
               graph.push_back(scope, -1);   // expand the vector to accomodate the new node
             }
-            graphSet(&graph, &scope, 2, phaseJ, inputVar); // put the node offset into the vector
+            graphSet(&graph, &scope, 2, phaseJ, inputNodes, inputEdges, inputVar); // put the node offset into the vector
             phaseJ++; // there's another subphase...
             if (phaseJ >= inputNodes) { // unless there isn't...
               phaseI = 2;  // then, move to phase 2...
@@ -553,7 +561,7 @@ public:
             for (int k = 0; k < 2; k++) {
               graph.push_back(scope, -1);   // expand the vector to accomodate the new edge
             }
-            graphSet(&graph, &scope, 3, phaseJ, inputVar); // put the edge destination into the vector.
+            graphSet(&graph, &scope, 3, phaseJ, inputNodes, inputEdges, inputVar); // put the edge destination into the vector.
             phaseJ++; // there's another subphase...
             if (phaseJ >= inputEdges) { // unless there isn't...
               inputVar = -2; // then exit the loop.
@@ -577,7 +585,7 @@ public:
         distances2.clear();
         distances3.clear();
         usedNumbers.clear();
-        int arraySize = 30; // establish the size of the array
+        int arraySize = 500000; // establish the size of the array
         std::random_device rd;  // set up the RNG
         std::mt19937_64 eng(rd());
         std::uniform_int_distribution<uint64_t> distr(0, arraySize - 1); // an edge has only a small chance to be present.
@@ -632,8 +640,10 @@ public:
           for (int k = 0; k < (2*arraySize*(1+outDegree))+2; k++) {
             graph.push_back(scope, -1);   // expand the vector to accomodate the new edge
           }
-          graphSet(&graph, &scope, 1, 0, arraySize);      // add the graph's size (in nodes and in edges) to the graph
-          graphSet(&graph, &scope, 0, 0, arraySize*outDegree);
+          graphSet(&graph, &scope, 1, 0, -1, -1, arraySize);      // add the graph's size (in nodes and in edges) to the graph
+          graphSet(&graph, &scope, 0, 0, -1, -1, arraySize*outDegree);
+          int graphGenNodes = arraySize;
+          int graphGenEdges = arraySize*outDegree;
           for (int i = 0; i < arraySize; i++) { // for each node...
             if (DO_PRINT) {
               std::cout << "Node " << i << " running offset: " << runningOffset << "     ";
@@ -681,10 +691,10 @@ public:
               if (DO_PRINT) {
                 std::cout << " " << usedNumbers.at(scope, j);
               }
-              graphSet(&graph, &scope, 3, runningOffset, usedNumbers.at(scope, j)); // add the edge to the graph
+              graphSet(&graph, &scope, 3, runningOffset, graphGenNodes, graphGenEdges, usedNumbers.at(scope, j)); // add the edge to the graph
               runningOffset++;                                                      // update the running offset
             }
-            graphSet(&graph, &scope, 2, i, oldOffset);  // add the offset to the graph
+            graphSet(&graph, &scope, 2, i, graphGenNodes, graphGenEdges, oldOffset);  // add the offset to the graph
             if (DO_PRINT) {
               std::cout << std::endl;
             }
@@ -738,8 +748,8 @@ public:
           //graph.at_mut(scope, 0).push_back(scope, runningOffset);
         }
 
-        numEdges = graphAt(&graph, &scope, 0, 0);  // numEdges at 0,0
-        numNodes = graphAt(&graph, &scope, 1, 0);  // numNodes at 1,0
+        numEdges = graph.at_mut(scope, 0);  // numEdges at 0,0
+        numNodes = graph.at_mut(scope, 1);  // numNodes at 1,0
 
         { // for incoming edges
           auto nodeCounts = manager->allocate_dataframe_vector<int>();   // for the indegree of each node
@@ -749,35 +759,35 @@ public:
             nodeCounts.push_back(scope, 0);
           }
           for (int i = 0; i < numNodes; i++) {   // for each node...
-            int startEdge = graphAt(&graph, &scope, 2, i); // establish the edge range: start
-            int endEdge = (i == numNodes - 1) ? numEdges : graphAt(&graph, &scope, 2, i + 1);
+            int startEdge = graphAt(&graph, &scope, 2, i, numNodes, numEdges); // establish the edge range: start
+            int endEdge = (i == numNodes - 1) ? numEdges : graphAt(&graph, &scope, 2, i + 1, numNodes, numEdges);
             for (int j = startEdge; j < endEdge; j++) {
               int targetNode;
               {
-                targetNode = graphAt(&graph, &scope, 3, j);
+                targetNode = graphAt(&graph, &scope, 3, j, numNodes, numEdges);
                 // establish the neighboring nodes
               }
               nodeCounts.at_mut(scope, targetNode)++; // update the indegree of the target node
             }
           }
-          graphSet(&graph, &scope, 4, 0, 0);    // the zeroth node has offset zero
+          graphSet(&graph, &scope, 4, 0, numNodes, numEdges, 0);    // the zeroth node has offset zero
           for (int i = 1; i < numNodes; i++) { // for each other node...
-            graphSet(&graph, &scope, 4, i, graphAt(&graph, &scope, 4, i - 1) + nodeCounts.at_mut(scope, i - 1));
+            graphSet(&graph, &scope, 4, i, numNodes, numEdges, graphAt(&graph, &scope, 4, i - 1, numNodes, numEdges) + nodeCounts.at_mut(scope, i - 1));
             // graph[4].push_back(scope, graph[4].at(scope, i - 1) + nodeCounts.at(scope, i - 1));
             // the offset is the sum of the previous offset and the indegree of the previous node
           }
           for (int i = 0; i < numNodes; i++) { // for each node...
-            int startEdge = graphAt(&graph, &scope, 2, i); // establish the edge range: start
-            int endEdge = (i == numNodes - 1) ? numEdges : graphAt(&graph, &scope, 2, i + 1);
+            int startEdge = graphAt(&graph, &scope, 2, i, numNodes, numEdges); // establish the edge range: start
+            int endEdge = (i == numNodes - 1) ? numEdges : graphAt(&graph, &scope, 2, i + 1, numNodes, numEdges);
             for (int j = startEdge; j < endEdge; j++) {
               int targetNode;
               {
-                targetNode = graphAt(&graph, &scope, 3, j);
+                targetNode = graphAt(&graph, &scope, 3, j, numNodes, numEdges);
                 // establish the neighboring nodes
               }
-              int desiredElement = graphAt(&graph, &scope, 4, targetNode);   // start with the offset for the target node
+              int desiredElement = graphAt(&graph, &scope, 4, targetNode, numNodes, numEdges);   // start with the offset for the target node
               desiredElement += nodeScatter.at_mut(scope, targetNode);      // and add the scatter for the target node
-              graphSet(&graph, &scope, 5, desiredElement, i);                 // use that as an index to add the edge
+              graphSet(&graph, &scope, 5, desiredElement, numNodes, numEdges, i);                 // use that as an index to add the edge
               nodeScatter.at_mut(scope, targetNode)++;                      // and increment the scatter, to not overwrite it
             }
           }
@@ -786,12 +796,12 @@ public:
         { // graph print 
           if (DO_PRINT) {
             for (int i = 0; i < numNodes; i++) {
-              int starting = graphAt(&graph, &scope, 2, i);
-              int ending = (i == numNodes - 1) ? (numEdges) : (graphAt(&graph, &scope, 2, i + 1));  // TODO: use this syntax for other ending nodes
+              int starting = graphAt(&graph, &scope, 2, i, numNodes, numEdges);
+              int ending = (i == numNodes - 1) ? (numEdges) : (graphAt(&graph, &scope, 2, i + 1, numNodes, numEdges));  // TODO: use this syntax for other ending nodes
               // int ending = (i == numNodes - 1) ? (numEdges) : (graphAt(graph, scope, 2, i + 1));
               std::cout << "Info ~ Node " << i << " [[ " << starting << " ]] is linked to nodes:";    // print debug info: node # and offset
               for (int j = starting; j < ending; j++) {
-                std::cout << " " << graphAt(&graph, &scope, 3, j);                                    // print debug info: list of neighbouring nodes
+                std::cout << " " << graphAt(&graph, &scope, 3, j, numNodes, numEdges);                                    // print debug info: list of neighbouring nodes
               }
               std::cout << std::endl;
             }
