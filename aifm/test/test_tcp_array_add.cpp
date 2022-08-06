@@ -31,17 +31,23 @@ extern "C" {
 using namespace far_memory;
 
 constexpr uint64_t kCacheSize = (128ULL << 20);
-constexpr uint64_t kFarMemSize = (4ULL << 30);
+constexpr uint64_t kFarMemSize = (4ULL << 32);
 constexpr uint32_t kNumGCThreads = 12;
 constexpr uint64_t kNumElements = 10000;
 
 #define ROOT_NODE_ID 0
 #define DO_PRINT false
-#define USER_INPUT false
+#define USER_INPUT true
 
 #define TOP_DOWN_TRAV true
 #define BOTTOM_UP_TRAV true
 #define HYBRID_TRAV true
+
+#define INPUT_NUM_NODES 8388608LL*2
+#define INPUT_RATIO 64
+#define INPUT_NUM_EDGES INPUT_NUM_NODES*INPUT_RATIO
+
+#define SCOPE_COUNTER 32768LL
 
 #define INPUT_ARRAY_SIZE 8388608/8
 
@@ -56,18 +62,18 @@ namespace far_memory {
 
 class FarMemTest {
 public:
-  int graphLoc(
+  long int graphLoc(
   DataFrameVector<int>* graph,
-  int x,
-  int y,
-  int n,
-  int e) {
+  long int x,
+  long int y,
+  long int n,
+  long int e) {
     // return (x+(6*y));
-    int loc = 0;                             // initialize loc to 0
+    long int loc = 0;                             // initialize loc to 0
     //int numNodes = graph->at_mut(*scope, 1); // numNodes is at (1,0)
     //int numEdges = graph->at_mut(*scope, 0); // numEdges is at (0,0)
-    int numNodes = n;
-    int numEdges = e;
+    long int numNodes = n;
+    long int numEdges = e;
     switch(x) {
       case 5:
         loc += numNodes;    // total: loc = (2*numNodes) + numEdges + 2
@@ -88,14 +94,14 @@ public:
     return loc;             // return loc
   }
 
-  int graphAt(
+  long int graphAt(
   DataFrameVector<int>* graph,
-  int x,
-  int y,
-  int n,
-  int e,
+  long int x,
+  long int y,
+  long int n,
+  long int e,
   DerefScope* scope = NULL) {
-    int funcOutput;
+    long int funcOutput;
     if (scope == NULL) {
       DerefScope backupScope;
       funcOutput = graph->at_mut(backupScope, graphLoc(graph, x, y, n, e)); // return the element at (x,y)
@@ -107,11 +113,11 @@ public:
 
   void graphSet(
   DataFrameVector<int>* graph,
-  int x,
-  int y,
-  int n,
-  int e,
-  int target,
+  long int x,
+  long int y,
+  long int n,
+  long int e,
+  long int target,
   DerefScope* scope = NULL) {
     if (scope == NULL) {
       DerefScope backupScope;
@@ -123,7 +129,7 @@ public:
 
   void gtepsDisplay(
   std::chrono::time_point<std::chrono::_V2::system_clock, std::chrono::duration<long int, std::ratio<1, 1000000000> > > start,
-  int traversedEdges,
+  long int traversedEdges,
   const char* name) {
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<nanoseconds>(stop - start);
@@ -148,9 +154,12 @@ public:
     int newCount = 0;      // we're working on a new layer, so it's empty for now
     newFrontier->clear();  // therefore, clear the new frontier
     {
-      for (int i = 0; i < *count; i += 10080) {           // for each node in the frontier:
+      int savedJ = 0;
+      int edgeOffset = 0;
+      for (int i = 0; i < *count; i = savedJ) {           // for each node in the frontier:
         DerefScope scope;
-        for (int j = i; (j < *count) && (j < i+10080); j++) {
+        int scopeUsage = 0;
+        for (int j = i; (j < *count) && (scopeUsage < SCOPE_COUNTER); j++) {
           int node;
           {
             node = frontier->at(scope, j);          // establish the node
@@ -159,8 +168,17 @@ public:
             std::cout << "Working on node " << node << std::endl;
           }
           int startEdge = graphAt(graph, 2, node, numNodes, numEdges, &scope);     // establish the edge range: start
+          startEdge += edgeOffset;
+          edgeOffset = 0;
           int endEdge = (node == numNodes - 1) ? numEdges : graphAt(graph, 2, node + 1, numNodes, numEdges, &scope); // establish the edge range: end
           for (int neighbor = startEdge; neighbor < endEdge; neighbor++) {        // for each edge:
+            scopeUsage++;
+            if (scopeUsage >= SCOPE_COUNTER) {
+              edgeOffset += neighbor - graphAt(graph, 2, node, numNodes, numEdges, &scope);
+              savedJ--;
+              //std::cout << "{" << savedJ << "/" << edgeOffset << "} "; // 
+              break;
+            }
             int outgoing = graphAt(graph, 3, neighbor, numNodes, numEdges, &scope);  // establish the neighboring nodes
             traversedEdges++;
             {
@@ -174,6 +192,7 @@ public:
               }
             }
           }
+          savedJ++;
         }
       }
     }
@@ -194,9 +213,9 @@ public:
 
     int traversedEdges = 0;
     
-    for (int i = 0; i < numNodes; i += 10080) {  // initialise the distances of each node...
+    for (int i = 0; i < numNodes; i += SCOPE_COUNTER) {  // initialise the distances of each node...
       DerefScope scope;
-      for (int j = i; (j < numNodes) && (j < i+10080); j++) {
+      for (int j = i; (j < numNodes) && (j < i+SCOPE_COUNTER); j++) {
         if (j == ROOT_NODE_ID) {
           distances->push_back(scope, 0);     // to 0 on the root node...
         } else {
@@ -222,8 +241,10 @@ public:
     if (DO_PRINT) {
       std::cout << std::endl;
     }
+    //std::cout << "ZONECK TD 1 ";
     while (count != 0) {  // while there are still nodes to sort through...
       traversedEdges += topDownStep(manager, distances, graph, frontier, &count, newFrontier);
+      //std::cout << "ZONECK TD 2 {" << traversedEdges << "} ";
       {
         auto temp = frontier;   // swap the frontiers -- we're moving to the next layer now
         frontier = newFrontier;
@@ -246,38 +267,60 @@ public:
 
     int traversedEdges = 0;
 
+    int downCounter = 0;
+
     int newCount = *count;
-    for (int i = *count - 1; i >= 0; i -= 10080) {       // for each node...
-      DerefScope scope;
-      for (int j = i; (j >= 0 && j > i-10080); j--) {
-        int node;
-        {
-          node = frontier->at(scope, j + offset);  // establish the node
-        }
-        if (DO_PRINT) {
-          std::cout << "Working on node " << node << std::endl;
-        }
-        int startEdge = graphAt(graph, 4, node, numNodes, numEdges, &scope); // establish the edge range: start
-        int endEdge = (node == numNodes - 1) ? numEdges : graphAt(graph, 4, node + 1, numNodes, numEdges, &scope);
-        for (int neighbor = startEdge; neighbor < endEdge; neighbor++) {        // for each edge:
-          int outgoing = graphAt(graph, 5, neighbor, numNodes, numEdges, &scope);  // establish the neighboring nodes
-          traversedEdges++;
+    {
+      int savedJ = *count - 1;
+      int edgeOffset = 0;
+      for (int i = *count - 1; i >= 0; i = savedJ) {       // for each node...
+        DerefScope scope;
+        int scopeUsage = 0;
+        for (int j = i; j >= 0 && (scopeUsage < SCOPE_COUNTER); j--) {
+          int node;
           {
-            if (distances->at(scope, outgoing) == *iterator) { // when the node is on the frontier,
-              distances->at_mut(scope, node) = *iterator + 1;    // write its distance
-              newCount--;                                         // decrement the new count
-              {
-                //auto temp = frontier->at(scope, i);              // move the node to the end of the list
-                frontier->at_mut(scope, j + offset) = frontier->at(scope, newCount + offset);
-                //frontier->at_mut(scope, newCount) = temp;
-              }
-              frontier->pop_back(scope);                         // and delete it
-              if (DO_PRINT) {
-                std::cout << "Linked to node " << outgoing << std::endl;
-              }
+            node = frontier->at(scope, j + offset);  // establish the node
+          }
+          if (DO_PRINT) {
+            std::cout << "Working on node " << node << std::endl;
+          }
+          int startEdge = graphAt(graph, 4, node, numNodes, numEdges, &scope); // establish the edge range: start
+          startEdge += edgeOffset;
+          edgeOffset = 0;
+          int endEdge = (node == numNodes - 1) ? numEdges : graphAt(graph, 4, node + 1, numNodes, numEdges, &scope);
+          for (int neighbor = startEdge; neighbor < endEdge; neighbor++) {        // for each edge:
+            scopeUsage += 4;
+            if (scopeUsage >= SCOPE_COUNTER) {
+              edgeOffset = neighbor - graphAt(graph, 4, node, numNodes, numEdges, &scope);
+              savedJ++;
+              //std::cout << "{" << savedJ << "/" << edgeOffset << "} "; // 
               break;
             }
+            int outgoing = graphAt(graph, 5, neighbor, numNodes, numEdges, &scope);  // establish the neighboring nodes
+            traversedEdges++;
+            {
+              if (distances->at(scope, outgoing) == *iterator) { // when the node is on the frontier,
+                distances->at_mut(scope, node) = *iterator + 1;    // write its distance
+                newCount--;                                         // decrement the new count
+                {
+                  //auto temp = frontier->at(scope, i);              // move the node to the end of the list
+                  frontier->at_mut(scope, j + offset) = frontier->at(scope, newCount + offset);
+                  //frontier->at_mut(scope, newCount) = temp;
+                }
+                frontier->pop_back(scope);                         // and delete it
+                if (DO_PRINT) {
+                  std::cout << "Linked to node " << outgoing << std::endl;
+                }
+                break;
+              }
+            }
           }
+          savedJ--;
+          if (savedJ != downCounter - 1) {
+            //std::cout << "{ " << savedJ << "|" << downCounter << "} ";
+          }
+          downCounter = savedJ;
+          //std::cout << j << " ";
         }
       }
     }
@@ -313,9 +356,9 @@ public:
     //int newCount = count;        // the number of unvisited nodes (updated more frequently)
     int iterator = 0;            // the iteration count.
 
-    for (int i = 0; i < numNodes; i += 10080) {      // initialise the distances of each node...
+    for (int i = 0; i < numNodes; i += SCOPE_COUNTER) {      // initialise the distances of each node...
       DerefScope scope;
-      for (int j = i; (j < numNodes) && (j < i+10080); j++) {
+      for (int j = i; (j < numNodes) && (j < i+SCOPE_COUNTER); j++) {
         if (j == ROOT_NODE_ID) {
           distances->push_back(scope, 0);         // to 0 for the root node...
         } else {
@@ -329,6 +372,7 @@ public:
 
     while (count != 0) {  // while there are still nodes to sort through...
       traversedEdges += bottomUpStep(manager, distances, graph, 0, frontier, &count, &iterator);
+      std::cout << count;
       iterator++;           // update the iterator
     }
     
@@ -352,9 +396,9 @@ public:
 
     int newCount = 0;                               // we're working on a new layer, so it's empty for now
     {
-      for (int i = 0; i < *count; i += 10080) {            // for each node in the frontier:
+      for (int i = 0; i < *count; i += SCOPE_COUNTER) {            // for each node in the frontier:
         DerefScope scope;
-        for (int j = i; (j < *count) && (j < i+10080); j++) {
+        for (int j = i; (j < *count) && (j < i+SCOPE_COUNTER); j++) {
           int node;
           {
             node = frontier->at(scope, j + offset);  // establish the node
@@ -438,9 +482,9 @@ public:
 
     int traversedEdges = 0;
 
-    for (int i = 0; i < numNodes; i += 10080) {      // initialise the distances of each node...
+    for (int i = 0; i < numNodes; i += SCOPE_COUNTER) {      // initialise the distances of each node...
       DerefScope scope;
-      for (int j = i; (j < numNodes) && (j < i+10080); j++) {
+      for (int j = i; (j < numNodes) && (j < i+SCOPE_COUNTER); j++) {
         if (j == ROOT_NODE_ID) {
           distances->push_back(scope, 0);         // to 0 for the root node...
         } else {
@@ -465,9 +509,9 @@ public:
       DerefScope scope;
       frontier->push_back(scope, ROOT_NODE_ID);   // the root node goes first...
     }
-    for (int i = 1; i < numNodes; i += 10080) {
+    for (int i = 1; i < numNodes; i += SCOPE_COUNTER) {
       DerefScope scope;
-      for (int j = i; (j < numNodes) && (j < i+10080); j++) {
+      for (int j = i; (j < numNodes) && (j < i+SCOPE_COUNTER); j++) {
         if (j == ROOT_NODE_ID) {
           frontier->push_back(scope, 0);              // other nodes get put in their own index...
         } else {
@@ -505,9 +549,9 @@ public:
     }
     //bottomOffset = visitedNodes;            // the remaining nodes are at the end of the data structure, starting at index visitedNodes...
     bottomCount = numNodes - visitedNodes;  // and having a size of numNodes - visitedNodes
-    for (int i = 1; i < numNodes; i += 10080) {
+    for (int i = 1; i < numNodes; i += SCOPE_COUNTER) {
       DerefScope scope;
-      for (int j = i; (j < numNodes) && (j < i+10080); j++) {
+      for (int j = i; (j < numNodes) && (j < i+SCOPE_COUNTER); j++) {
         if (distances->at(scope, j) == -1) {
           bottomFrontier->push_back(scope, j);
         }
@@ -535,16 +579,16 @@ public:
     int numNodes;
 
     if (USER_INPUT == true) { // input subsection.
-      unsigned int inputVar = 0;
-      int phaseI = 0;     // main phases
-      int phaseJ = 0;     // subphases
-      int inputNodes = 0; // # nodes
-      int inputEdges = 0; // # edges
+      long unsigned int inputVar = 0;
+      long int phaseI = 0;     // main phases
+      long int phaseJ = 0;     // subphases
+      long int inputNodes = 0; // # nodes
+      long int inputEdges = 0; // # edges
       while (inputVar != -2) {
         bool refresh = false;
         DerefScope scope;
         while (inputVar != -2 && !refresh) {
-          if (phaseJ % 10080 == 0) {
+          if (phaseJ % SCOPE_COUNTER == 0 && false) {
             switch (phaseI) {
               case 0: // constants
                 switch (phaseJ) {
@@ -581,18 +625,19 @@ public:
                     inputVar = 0xDEADBEEF;
                     break;
                   case 1:
-                    inputVar = 11111111;
+                    inputVar = INPUT_NUM_NODES;
                     break;
                   case 2:
-                    inputVar = 44444444;
+                    inputVar = INPUT_NUM_EDGES;
                     break;
                 }
                 break;
               case 1:
-                inputVar = 4*phaseJ;
+                inputVar = INPUT_RATIO*phaseJ;
+                inputVar -= (phaseJ % 100800);
                 break;
               case 2:
-                inputVar = (phaseJ + 3) % 11111111;
+                inputVar = (phaseJ + 3) % INPUT_NUM_NODES;
                 break;
             }
           }
@@ -637,7 +682,7 @@ public:
                 phaseJ = 0;                   // subphase 0.
                 refresh = true;
               }
-              if (phaseJ % 10080 == 0) {
+              if (phaseJ % SCOPE_COUNTER == 0) {
                 refresh = true;
               }
               break;
@@ -650,7 +695,7 @@ public:
               if (phaseJ >= inputEdges) {     // unless there isn't...
                 inputVar = -2;                  // then exit the loop.
               }
-              if (phaseJ % 10080 == 0) {
+              if (phaseJ % SCOPE_COUNTER == 0) {
                 refresh = true;
               }
               break;
@@ -662,7 +707,7 @@ public:
         }
       } 
     }
-
+    std::cout << "ZONECK 1 ";
     for (int repeats = 0; repeats < 1; repeats++) { // for testing purposes. set to repeats<1 for normal use.
       {
 
@@ -723,9 +768,9 @@ public:
         if (USER_INPUT == false) { // graphgen 
           int runningOffset = 0;  // keep track of how many edges we've gone through so far
           int outDegree = 4;      // set the outdegree of each node
-          for (int i = 0; i < (2*arraySize*(1+outDegree))+2; i += 10080) {
+          for (int i = 0; i < (2*arraySize*(1+outDegree))+2; i += SCOPE_COUNTER) {
             DerefScope scope;
-            for (int j = i; (j < (2*arraySize*(1+outDegree))+2) && (j < i+10080); j++) {
+            for (int j = i; (j < (2*arraySize*(1+outDegree))+2) && (j < i+SCOPE_COUNTER); j++) {
               graph.push_back(scope, -1);   // expand the vector to accomodate the new edge
             }
           }
@@ -733,10 +778,10 @@ public:
           graphSet(&graph, 0, 0, -1, -1, arraySize*outDegree);
           int graphGenNodes = arraySize;
           int graphGenEdges = arraySize*outDegree;
-
-          for (int i = 0; i < arraySize; i += 10080) { // for each node...
+          std::cout << "ZONECK 2 ";
+          for (int i = 0; i < arraySize; i += SCOPE_COUNTER) { // for each node...
             DerefScope scope;
-            for (int j = i; (j < arraySize) && (j < i+10080); j++) {
+            for (int j = i; (j < arraySize) && (j < i+SCOPE_COUNTER); j++) {
               if (DO_PRINT) {
                 std::cout << "Node " << j << " running offset: " << runningOffset << "     ";
                 std::cout << "Linked nodes:";
@@ -844,23 +889,24 @@ public:
           //}
           //graph.at_mut(scope, 0).push_back(scope, runningOffset);
         }
-
+        std::cout << "ZONECK 3 ";
         numEdges = graphAt(&graph, 0, 0, -1, -1);   // numEdges is at (0,0)
         numNodes = graphAt(&graph, 1, 0, -1, -1);   // numNodes is at (1,0)
 
         { // for incoming edges
           auto nodeCounts = manager->allocate_dataframe_vector<int>();   // for the indegree of each node
           auto nodeScatter = manager->allocate_dataframe_vector<int>();  // to adjust the offset of each node
-          for (int i = 0; i < numNodes; i += 10080) {   // at each node...
+          for (int i = 0; i < numNodes; i += SCOPE_COUNTER) {   // at each node...
             DerefScope scope;
-            for (int j = i; (j < numNodes) && (j < i+10080); j++) {
+            for (int j = i; (j < numNodes) && (j < i+SCOPE_COUNTER); j++) {
               nodeScatter.push_back(scope, 0);       // prefill the scatter and counts to 0
               nodeCounts.push_back(scope, 0);
             }
           }
-          for (int i = 0; i < numNodes; i += 10080) {   // for each node...
+          std::cout << "ZONECK 3.1 ";
+          for (int i = 0; i < numNodes; i += (SCOPE_COUNTER/4)) {   // for each node...
             DerefScope scope;
-            for (int j = i; (j < numNodes) && (j < i+10080); j++) {
+            for (int j = i; (j < numNodes) && (j < i+(SCOPE_COUNTER/4)); j++) {
               int startEdge = graphAt(&graph, 2, j, numNodes, numEdges, &scope); // establish the edge range: start
               int endEdge = (j == numNodes - 1) ? numEdges : graphAt(&graph, 2, j + 1, numNodes, numEdges, &scope); // establish the node range: end
               for (int k = startEdge; k < endEdge; k++) {
@@ -871,10 +917,11 @@ public:
               }
             }
           }
+          std::cout << "ZONECK 3.2 ";
           graphSet(&graph, 4, 0, numNodes, numEdges, 0);    // the zeroth node has offset zero
-          for (int i = 1; i < numNodes; i += 10080) { // for each other node...
+          for (int i = 1; i < numNodes; i += SCOPE_COUNTER) { // for each other node...
             DerefScope scope;
-            for (int j = i; (j < numNodes) && (j < i+10080); j++) {
+            for (int j = i; (j < numNodes) && (j < i+SCOPE_COUNTER); j++) {
               int tempInt;
               {
                 tempInt = nodeCounts.at_mut(scope, j - 1);
@@ -884,24 +931,46 @@ public:
               // the offset is the sum of the previous offset and the indegree of the previous node
             }
           }
-          for (int i = 0; i < numNodes; i += 10080) { // for each node...
-            DerefScope scope;
-            for (int j = i; (j < numNodes) && (j < i+10080); j++) {
-              int startEdge = graphAt(&graph, 2, j, numNodes, numEdges, &scope); // establish the edge range: start
-              int endEdge = (j == numNodes - 1) ? numEdges : graphAt(&graph, 2, j + 1, numNodes, numEdges, &scope);
-              for (int k = startEdge; k < endEdge; k++) {
-                int targetNode = graphAt(&graph, 3, k, numNodes, numEdges, &scope); // establish the neighboring nodes
-                int desiredElement = graphAt(&graph, 4, targetNode, numNodes, numEdges, &scope);   // start with the offset for the target node
-                {
-                  desiredElement += nodeScatter.at_mut(scope, targetNode);      // and add the scatter for the target node
-                  nodeScatter.at_mut(scope, targetNode)++;                      // and increment the scatter, to not overwrite the newly added edge
+          std::cout << "ZONECK 3.3 ";
+          {
+            int savedJ = 0;
+            int edgeOffset = 0;
+            for (int i = 0; i < numNodes; i = savedJ) { // for each node...
+              DerefScope scope;
+              int scopeUsage = 0;
+              for (int j = i; (j < numNodes) && (scopeUsage < SCOPE_COUNTER); j++) {
+                //std::cout << "ZONECK 3.3.1 ";
+                int startEdge = graphAt(&graph, 2, j, numNodes, numEdges, &scope); // establish the edge range: start
+                startEdge += edgeOffset;
+                edgeOffset = 0;
+                int endEdge = (j == numNodes - 1) ? numEdges : graphAt(&graph, 2, j + 1, numNodes, numEdges, &scope);
+                //std::cout << "ZONECK 3.3.2 ";
+                for (int k = startEdge; k < endEdge; k++) {
+                  scopeUsage += 4;
+                  if (scopeUsage >= SCOPE_COUNTER) {
+                    edgeOffset += k - graphAt(&graph, 2, j, numNodes, numEdges, &scope);
+                    savedJ--;
+                    //std::cout << "{" << savedJ << "/" << edgeOffset << "} "; // 
+                    break;
+                  }
+                  //std::cout << "ZONECK 3.3.3 ";
+                  int targetNode = graphAt(&graph, 3, k, numNodes, numEdges, &scope); // establish the neighboring nodes
+                  int desiredElement = graphAt(&graph, 4, targetNode, numNodes, numEdges, &scope);   // start with the offset for the target node
+                  //std::cout << "ZONECK 3.3.4 ";
+                  {
+                    desiredElement += nodeScatter.at_mut(scope, targetNode);      // and add the scatter for the target node
+                    nodeScatter.at_mut(scope, targetNode)++;                      // and increment the scatter, to not overwrite the newly added edge
+                  }
+                  //std::cout << "ZONECK 3.3.5-{" << scopeUsage << "} ";
+                  graphSet(&graph, 5, desiredElement, numNodes, numEdges, j, &scope);                // use that as an index to add the edge
+                  //std::cout << "ZONECK 3.3.6 ";
                 }
-                graphSet(&graph, 5, desiredElement, numNodes, numEdges, j, &scope);                // use that as an index to add the edge
+                savedJ++;
               }
             }
           }
         }
-
+        std::cout << "ZONECK 4 ";
         { // graph print 
           if (DO_PRINT) {
             for (int i = 0; i < numNodes; i++) {
