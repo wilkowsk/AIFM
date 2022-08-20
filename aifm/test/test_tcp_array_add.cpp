@@ -172,7 +172,7 @@ public:
           edgeOffset = 0;
           int endEdge = (node == numNodes - 1) ? numEdges : graphAt(graph, 2, node + 1, numNodes, numEdges, &scope); // establish the edge range: end
           for (int neighbor = startEdge; neighbor < endEdge; neighbor++) {        // for each edge:
-            scopeUsage++;
+            scopeUsage += 64;
             if (scopeUsage >= SCOPE_COUNTER) {
               edgeOffset += neighbor - graphAt(graph, 2, node, numNodes, numEdges, &scope);
               savedJ--;
@@ -289,7 +289,7 @@ public:
           edgeOffset = 0;
           int endEdge = (node == numNodes - 1) ? numEdges : graphAt(graph, 4, node + 1, numNodes, numEdges, &scope);
           for (int neighbor = startEdge; neighbor < endEdge; neighbor++) {        // for each edge:
-            scopeUsage += 4;
+            scopeUsage += 64;
             if (scopeUsage >= SCOPE_COUNTER) {
               edgeOffset = neighbor - graphAt(graph, 4, node, numNodes, numEdges, &scope);
               savedJ++;
@@ -372,7 +372,7 @@ public:
 
     while (count != 0) {  // while there are still nodes to sort through...
       traversedEdges += bottomUpStep(manager, distances, graph, 0, frontier, &count, &iterator);
-      std::cout << count;
+      //std::cout << count;
       iterator++;           // update the iterator
     }
     
@@ -509,16 +509,16 @@ public:
       DerefScope scope;
       frontier->push_back(scope, ROOT_NODE_ID);   // the root node goes first...
     }
-    for (int i = 1; i < numNodes; i += SCOPE_COUNTER) {
-      DerefScope scope;
-      for (int j = i; (j < numNodes) && (j < i+SCOPE_COUNTER); j++) {
-        if (j == ROOT_NODE_ID) {
-          frontier->push_back(scope, 0);              // other nodes get put in their own index...
-        } else {
-          frontier->push_back(scope, j);              // except for the zero node, whose index is the root node's number.
-        }
-      }
-    }
+    //for (int i = 1; i < numNodes; i += SCOPE_COUNTER) {
+    //  DerefScope scope;
+    //  for (int j = i; (j < numNodes) && (j < i+SCOPE_COUNTER); j++) {
+    //    if (j == ROOT_NODE_ID) {
+    //      frontier->push_back(scope, 0);              // other nodes get put in their own index...
+    //    } else {
+    //      frontier->push_back(scope, j);              // except for the zero node, whose index is the root node's number.
+    //    }
+    //  }
+    //}
       
     auto vertexSet2 = manager->allocate_dataframe_vector<int>(); // for petsdirbyh
     auto newFrontier = &vertexSet2;               // make a frontier of the current layer of nodes
@@ -578,6 +578,8 @@ public:
     int numEdges;                                                 // don't forget our ints, allocate them too!
     int numNodes;
 
+    std::ifstream myFile ("../../graph500/src/integers");
+
     if (USER_INPUT == true) { // input subsection.
       long unsigned int inputVar = 0;
       long int phaseI = 0;     // main phases
@@ -617,35 +619,39 @@ public:
             }
           }
           {
+            std::string testString;
+            myFile >> testString;
+            inputVar = stoi(testString);
+
             //std::cin >> inputVar; // input. replace with file reading on port.
-            switch (phaseI) {
-              case 0:
-                switch (phaseJ) {
-                  case 0:
-                    inputVar = 0xDEADBEEF;
-                    break;
-                  case 1:
-                    inputVar = INPUT_NUM_NODES;
-                    break;
-                  case 2:
-                    inputVar = INPUT_NUM_EDGES;
-                    break;
-                }
-                break;
-              case 1:
-                inputVar = INPUT_RATIO*phaseJ;
-                inputVar -= (phaseJ % 100800);
-                break;
-              case 2:
-                inputVar = (phaseJ + 3) % INPUT_NUM_NODES;
-                break;
-            }
+            //switch (phaseI) {
+            //  case 0:
+            //    switch (phaseJ) {
+            //      case 0:
+            //        inputVar = 0xDEADBEEF;
+            //        break;
+            //      case 1:
+            //        inputVar = INPUT_NUM_NODES;
+            //        break;
+            //      case 2:
+            //        inputVar = INPUT_NUM_EDGES;
+            //        break;
+            //    }
+            //    break;
+            //  case 1:
+            //    inputVar = INPUT_RATIO*phaseJ;
+            //    inputVar -= (phaseJ % 100800);
+            //    break;
+            //  case 2:
+            //    inputVar = (phaseJ + 3) % INPUT_NUM_NODES;
+            //    break;
+            //}
           }
           switch (phaseI) {
             case 0: // constants
               switch (phaseJ) {
                 case 0: // graph header token
-                  if (inputVar != 0xDEADBEEF) {       // match the magic value...
+                  if (inputVar != -559038737) {       // match the magic value...
                     std::cout << "ERROR" << std::endl;  // or else you'll get an error
                   }
                   phaseJ++;                           // there's another subphase...
@@ -707,7 +713,7 @@ public:
         }
       } 
     }
-    std::cout << "ZONECK 1 ";
+    //std::cout << "ZONECK 1 ";
     for (int repeats = 0; repeats < 1; repeats++) { // for testing purposes. set to repeats<1 for normal use.
       {
 
@@ -718,15 +724,15 @@ public:
         usedNumbers.clear();
         int arraySize = INPUT_ARRAY_SIZE; // establish the size of the array
         std::random_device rd;  // set up the RNG
-        std::mt19937_64 eng(rd());
-        std::uniform_int_distribution<uint64_t> distr(0, arraySize - 1); // to select a random element of the array.
+        std::mt19937_64 rng(rd());
+        std::uniform_int_distribution<uint64_t> distr(0, (USER_INPUT ? graphAt(&graph, 1, 0, -1, -1) : arraySize - 1)); // to select a random element of the array.
 
         { // - 
           //int edges[arraySize][arraySize];      // each entry indicates whether an edge exists between two nodes.
           //for (int i = 0; i < arraySize; i++) {
           //  edges[i][i] = 0;
           //  for (int j = 0; j < arraySize; j++) { // for each distinct pair of nodes:
-          //    int randomNum = distr(eng);
+          //    int randomNum = distr(rng);
           //    if (randomNum != 1 || j == i) {
           //      randomNum = 0;                      // if the random num wasn't 1, set it to 0.
           //    }
@@ -778,7 +784,7 @@ public:
           graphSet(&graph, 0, 0, -1, -1, arraySize*outDegree);
           int graphGenNodes = arraySize;
           int graphGenEdges = arraySize*outDegree;
-          std::cout << "ZONECK 2 ";
+          //std::cout << "ZONECK 2 ";
           for (int i = 0; i < arraySize; i += SCOPE_COUNTER) { // for each node...
             DerefScope scope;
             for (int j = i; (j < arraySize) && (j < i+SCOPE_COUNTER); j++) {
@@ -788,14 +794,14 @@ public:
               }
               int oldOffset = runningOffset;        // keep an old value of runningOffset, for later
               if (j == arraySize - 1) {     // todo: stop messing with the graphgen
-                int temp = distr(eng);                // add an edge from the current node...
+                int temp = distr(rng);                // add an edge from the current node...
                 usedNumbers.push_back(scope, temp);   // to a random node if we're at the last node
               } else {
                 usedNumbers.push_back(scope, j + 1);  // to the next node otherwise
               }
               int currentOutDegree = 1;
               while (currentOutDegree < outDegree) {  // while we still haven't gotten all edges...
-                int randomNum = distr(eng);             // select a random node
+                int randomNum = distr(rng);             // select a random node
                 bool isUnique = true;
                 for (int k = 0; k < currentOutDegree; k++) {
                   if (usedNumbers.at(scope, k) == randomNum) {
@@ -808,7 +814,7 @@ public:
                 }
               }
               for (int k = 0; k < outDegree; k++) {   // for each edge from this node...
-                //int randomNum = distr(eng);
+                //int randomNum = distr(rng);
                 //if (randomNum != 1 || j == i) {
                 //  randomNum = 0;           // if the random num wasn't 1, set it to 0.
                 //}
@@ -874,7 +880,7 @@ public:
           //    bool usePotential = false;
           //    while (!usePotential) {
           //      std::cout << "besenj";
-          //      potential = distr(eng);
+          //      potential = distr(rng);
           //      usePotential = (potential != i) && (potential != i + 1);
           //      for (int k = 0; (k < j) && !usePotential; k++) {
           //        if (potential == arraye[k]) {
@@ -889,10 +895,24 @@ public:
           //}
           //graph.at_mut(scope, 0).push_back(scope, runningOffset);
         }
-        std::cout << "ZONECK 3 ";
+        //std::cout << "ZONECK 3 ";
         numEdges = graphAt(&graph, 0, 0, -1, -1);   // numEdges is at (0,0)
         numNodes = graphAt(&graph, 1, 0, -1, -1);   // numNodes is at (1,0)
-
+        { // for undirected graphs
+          for (int i = 0; i < numNodes; i += SCOPE_COUNTER) {   // at each node...
+            DerefScope scope;
+            for (int j = i; (j < numNodes) && (j < i+SCOPE_COUNTER); j++) {
+              graphSet(&graph, 4, j, numNodes, numEdges, graphAt(&graph, 2, j, numNodes, numEdges, &scope), &scope);
+            }
+          }
+          for (int i = 0; i < numEdges; i += SCOPE_COUNTER) {   // at each node...
+            DerefScope scope;
+            for (int j = i; (j < numEdges) && (j < i+SCOPE_COUNTER); j++) {
+              graphSet(&graph, 5, j, numNodes, numEdges, graphAt(&graph, 3, j, numNodes, numEdges, &scope), &scope);
+            }
+          }
+        }
+/*
         { // for incoming edges
           auto nodeCounts = manager->allocate_dataframe_vector<int>();   // for the indegree of each node
           auto nodeScatter = manager->allocate_dataframe_vector<int>();  // to adjust the offset of each node
@@ -946,7 +966,7 @@ public:
                 int endEdge = (j == numNodes - 1) ? numEdges : graphAt(&graph, 2, j + 1, numNodes, numEdges, &scope);
                 //std::cout << "ZONECK 3.3.2 ";
                 for (int k = startEdge; k < endEdge; k++) {
-                  scopeUsage += 4;
+                  scopeUsage += 64;
                   if (scopeUsage >= SCOPE_COUNTER) {
                     edgeOffset += k - graphAt(&graph, 2, j, numNodes, numEdges, &scope);
                     savedJ--;
@@ -970,6 +990,7 @@ public:
             }
           }
         }
+        */
         std::cout << "ZONECK 4 ";
         { // graph print 
           if (DO_PRINT) {
@@ -1073,6 +1094,7 @@ public:
       }
     }
     std::cout << "Passed" << std::endl;
+    myFile.close();
   }
 };
 } // namespace far_memory
